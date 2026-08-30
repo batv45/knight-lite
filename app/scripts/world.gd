@@ -28,11 +28,13 @@ var _player: CharacterBody2D
 
 func _ready() -> void:
 	_build_ground()
+	_build_world_bounds()
 	_player = _spawn_player()
 	_attach_camera(_player)
 	_add_touch_controls()
 
 	_hud = load("res://scenes/HUD.tscn").instantiate()
+	_hud.world_size = WORLD_SIZE
 	add_child(_hud)
 	_player.health_changed.connect(_hud.set_player_hp)
 	_player.xp_changed.connect(_hud.set_xp)
@@ -73,6 +75,27 @@ func _build_ground() -> void:
 	for y in tiles_y:
 		for x in tiles_x:
 			ground.set_cell(Vector2i(x, y), source_id, GRASS_COORD)
+
+## Karakterin (ve canavarların) dünya sınırlarının dışına çıkmasını engelleyen
+## görünmez duvarlar. StaticBody2D olduğu için move_and_slide() kullanan tüm
+## CharacterBody2D'ler (Player, Enemy) otomatik olarak buna çarpar, ekstra kod gerekmez.
+const WALL_THICKNESS := 64.0
+
+func _build_world_bounds() -> void:
+	_add_wall(Vector2(WORLD_SIZE.x / 2.0, -WALL_THICKNESS / 2.0), Vector2(WORLD_SIZE.x + WALL_THICKNESS * 2.0, WALL_THICKNESS))
+	_add_wall(Vector2(WORLD_SIZE.x / 2.0, WORLD_SIZE.y + WALL_THICKNESS / 2.0), Vector2(WORLD_SIZE.x + WALL_THICKNESS * 2.0, WALL_THICKNESS))
+	_add_wall(Vector2(-WALL_THICKNESS / 2.0, WORLD_SIZE.y / 2.0), Vector2(WALL_THICKNESS, WORLD_SIZE.y + WALL_THICKNESS * 2.0))
+	_add_wall(Vector2(WORLD_SIZE.x + WALL_THICKNESS / 2.0, WORLD_SIZE.y / 2.0), Vector2(WALL_THICKNESS, WORLD_SIZE.y + WALL_THICKNESS * 2.0))
+
+func _add_wall(pos: Vector2, size: Vector2) -> void:
+	var body := StaticBody2D.new()
+	body.position = pos
+	var shape := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = size
+	shape.shape = rect
+	body.add_child(shape)
+	add_child(body)
 
 func _spawn_player() -> CharacterBody2D:
 	var player: CharacterBody2D = load("res://scenes/Player.tscn").instantiate()

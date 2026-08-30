@@ -112,9 +112,15 @@ func _attack() -> void:
 	can_attack = true
 
 func _play_attack_flash() -> void:
+	# Yöne doğru kısa bir "hamle" (lunge) + sıkışma-esneme (squash & stretch) efekti.
 	var tw := create_tween()
-	tw.tween_property(_visual, "scale", Vector2(1.4, 1.4), 0.08)
-	tw.tween_property(_visual, "scale", Vector2.ONE, 0.08)
+	tw.set_trans(Tween.TRANS_BACK)
+	tw.set_ease(Tween.EASE_OUT)
+	var lunge := facing * 5.0
+	tw.tween_property(_visual, "position", lunge, 0.05)
+	tw.parallel().tween_property(_visual, "scale", Vector2(1.3, 0.85), 0.05)
+	tw.tween_property(_visual, "position", Vector2.ZERO, 0.14)
+	tw.parallel().tween_property(_visual, "scale", Vector2.ONE, 0.14)
 
 func take_damage(amount: int) -> void:
 	if is_dead:
