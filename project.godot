@@ -1,0 +1,31 @@
+; Engine configuration file.
+; Godot 4.x project — Knight Lite (Faz 1: hareket + kamera + touch kontrol)
+
+config_version=5
+
+[application]
+
+config/name="Knight Lite"
+run/main_scene="res://scenes/World.tscn"
+config/features=PackedStringArray("4.3", "Mobile")
+
+[autoload]
+
+InputBridge="*res://scripts/input_bridge.gd"
+
+[display]
+
+window/size/viewport_width=960
+window/size/viewport_height=540
+window/stretch/mode="canvas_items"
+window/handheld/orientation="landscape"
+
+[input_devices]
+
+; PC'de mouse ile de sanal joystick'i test edebilmek için dokunmatik olaylarını
+; mouse'tan simüle eder. Android'de gerçek dokunmatik olaylar zaten doğrudan gelir.
+pointing/emulate_touch_from_mouse=true
+
+[rendering]
+
+renderer/rendering_method="mobile"
