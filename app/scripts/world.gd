@@ -1,44 +1,39 @@
 extends Node2D
-## Faz 4 test dünyası: zemin + oyuncu + kamera + touch kontrol + HUD + canavarlar + loot.
-## Canavar tipi, spawn noktasına olan mesafeye göre seçilir (zorluk eğrisi).
-## Canavar öldüğünde: oyuncuya XP verilir, dünyaya bir altın drop'u düşer, birkaç
-## saniye sonra rastgele bir yerde yeni canavar doğar (öldür-kas-tekrar döngüsü).
+## Oyun dünyası: oyuncu, canavarlar, loot, kamera ve HUD'u kurar.
+## Görsel dünya üretimi (zemin, göl, yollar, kasaba, ormanlar) world_gen.gd'de.
+##
+## Canavar tipi, kasabaya olan mesafeye göre seçilir (zorluk eğrisi).
+## Canavar öldüğünde: oyuncuya XP verilir, altın drop'u düşer, birkaç saniye
+## sonra uygun bir yerde yeni canavar doğar (öldür-kas-tekrar döngüsü).
 
 const WORLD_SIZE := Vector2(2400, 1350)
-const ENEMY_COUNT := 10
+const ENEMY_COUNT := 14
 const ENEMY_RESPAWN_DELAY := 4.0
-const ENEMY_SPAWN_MARGIN := 200.0
-const VILLAGE_RADIUS := 220.0 # köy alanına ağaç/canavar doğmasın
+const ENEMY_SPAWN_MARGIN := 120.0
+const WALL_THICKNESS := 64.0
 
-## Zorluk eğrisi: spawn noktasına (dünya merkezi) olan mesafeye göre canavar tipi
-## seçilir. Merkeze yakın zayıf canavarlar, uzaklaştıkça güçlüleri, en uçlarda
-## nadiren boss-tier (big_demon) çıkar.
-func _pick_enemy_type(pos: Vector2) -> String:
-	var dist := pos.distance_to(WORLD_SIZE / 2.0)
-	if dist < 400.0:
-		return "goblin"
-	elif dist < 750.0:
-		return "goblin" if randf() < 0.5 else "skelet"
-	elif dist < 1050.0:
-		return "skelet" if randf() < 0.7 else "orc_warrior"
-	else:
-		return "big_demon" if randf() < 0.15 else "orc_warrior"
-
+var _gen: WorldGen
 var _hud: CanvasLayer
 var _player: CharacterBody2D
 
 func _ready() -> void:
-	y_sort_enabled = true # oyuncu/canavar/ağaç/ev birbirinin önünde-arkasında Y konumuna göre doğru sıralansın
+	y_sort_enabled = true # oyuncu/canavar/ağaç/ev Y konumuna göre doğru sıralansın
 
-	_build_ground()
-	_build_paths()
+	_gen = WorldGen.new(self, WORLD_SIZE)
+	_gen.build()
 	_build_world_bounds()
-	_scatter_decorations()
-	_build_village()
+
 	_player = _spawn_player()
 	_attach_camera(_player)
 	_add_touch_controls()
+	_setup_hud()
 
+	for i in ENEMY_COUNT:
+		_spawn_enemy_at(_random_enemy_position())
+
+	_maybe_take_dev_screenshot()
+
+func _setup_hud() -> void:
 	_hud = load("res://scenes/HUD.tscn").instantiate()
 	_hud.world_size = WORLD_SIZE
 	add_child(_hud)
@@ -53,103 +48,31 @@ func _ready() -> void:
 	_hud.set_xp(_player.xp, _player.xp_to_next, _player.level)
 	_hud.set_gold(_player.gold)
 
-	for i in ENEMY_COUNT:
-		_spawn_enemy_at(_random_enemy_position())
-
-	_maybe_take_dev_screenshot()
-
-## Kenney "Roguelike/RPG Pack" spritesheet'i: 16x16 tile, tile'lar arası 1px boşluk.
-## Koordinatlar spritesheet'i inceleyip bulundu (bkz. app/assets/tiles/).
-const TILE_SIZE := 16
-const GRASS_COORD := Vector2i(5, 0)
-
-func _build_ground() -> void:
-	var tile_set := TileSet.new()
-	tile_set.tile_size = Vector2i(TILE_SIZE, TILE_SIZE)
-
-	var atlas := TileSetAtlasSource.new()
-	atlas.texture = load("res://assets/tiles/roguelike_sheet.png")
-	atlas.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
-	atlas.separation = Vector2i(1, 1)
-	atlas.create_tile(GRASS_COORD)
-	var source_id := tile_set.add_source(atlas)
-
-	var ground := TileMapLayer.new()
-	ground.tile_set = tile_set
-	ground.z_index = -10
-	add_child(ground)
-
-	var tiles_x := int(WORLD_SIZE.x / TILE_SIZE)
-	var tiles_y := int(WORLD_SIZE.y / TILE_SIZE)
-	for y in tiles_y:
-		for x in tiles_x:
-			ground.set_cell(Vector2i(x, y), source_id, GRASS_COORD)
-
-## Köy meydanı (taş) + doğuya ve kuzeye giden yollar (toprak). Aynı spritesheet
-## üzerinde ayrı bir TileMapLayer, zemin (-10) ile karakterlerin (0) arasında
-## (-9) render edilir.
-const STONE_COORD := Vector2i(7, 0)
-const DIRT_COORD := Vector2i(6, 0)
-const PLAZA_HALF_TILES := 6
-const ROAD_HALF_WIDTH := TILE_SIZE * 1.5 + 8.0 # yol kalınlığının yarısı + ağaç payı
-
-func _build_paths() -> void:
-	var tile_set := TileSet.new()
-	tile_set.tile_size = Vector2i(TILE_SIZE, TILE_SIZE)
-
-	var atlas := TileSetAtlasSource.new()
-	atlas.texture = load("res://assets/tiles/roguelike_sheet.png")
-	atlas.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
-	atlas.separation = Vector2i(1, 1)
-	atlas.create_tile(STONE_COORD)
-	atlas.create_tile(DIRT_COORD)
-	var source_id := tile_set.add_source(atlas)
-
-	var path_layer := TileMapLayer.new()
-	path_layer.tile_set = tile_set
-	path_layer.z_index = -9
-	add_child(path_layer)
-
-	var cx := int(WORLD_SIZE.x / TILE_SIZE / 2.0)
-	var cy := int(WORLD_SIZE.y / TILE_SIZE / 2.0)
-
-	# Meydan (taş kare)
-	for y in range(cy - PLAZA_HALF_TILES, cy + PLAZA_HALF_TILES + 1):
-		for x in range(cx - PLAZA_HALF_TILES, cx + PLAZA_HALF_TILES + 1):
-			path_layer.set_cell(Vector2i(x, y), source_id, STONE_COORD)
-
-	# Doğuya giden yol (toprak)
-	for y in range(cy - 1, cy + 1):
-		for x in range(cx + PLAZA_HALF_TILES, int(WORLD_SIZE.x / TILE_SIZE)):
-			path_layer.set_cell(Vector2i(x, y), source_id, DIRT_COORD)
-
-	# Kuzeye giden yol (toprak)
-	for x in range(cx - 1, cx + 1):
-		for y in range(0, cy - PLAZA_HALF_TILES):
-			path_layer.set_cell(Vector2i(x, y), source_id, DIRT_COORD)
-
-## Bir konum meydan/yol üstünde mi? (ağaç/canavar oraya doğmasın diye)
-func _is_on_path(pos: Vector2) -> bool:
-	var center := WORLD_SIZE / 2.0
-	var plaza_half := PLAZA_HALF_TILES * TILE_SIZE + TILE_SIZE / 2.0
-	if abs(pos.x - center.x) <= plaza_half and abs(pos.y - center.y) <= plaza_half:
-		return true # meydan
-	if pos.x > center.x and abs(pos.y - center.y) < ROAD_HALF_WIDTH:
-		return true # doğu yolu
-	if pos.y < center.y and abs(pos.x - center.x) < ROAD_HALF_WIDTH:
-		return true # kuzey yolu
-	return false
+## Zorluk eğrisi: kasabaya (dünya merkezi) olan mesafeye göre canavar tipi.
+## Kasabaya yakın zayıf canavarlar, uzaklaştıkça güçlüleri, en uçlarda nadiren
+## boss-tier (big_demon) çıkar.
+func _pick_enemy_type(pos: Vector2) -> String:
+	var dist := pos.distance_to(WORLD_SIZE / 2.0)
+	if dist < 500.0:
+		return "goblin"
+	elif dist < 800.0:
+		return "goblin" if randf() < 0.5 else "skelet"
+	elif dist < 1050.0:
+		return "skelet" if randf() < 0.7 else "orc_warrior"
+	else:
+		return "big_demon" if randf() < 0.15 else "orc_warrior"
 
 ## Karakterin (ve canavarların) dünya sınırlarının dışına çıkmasını engelleyen
 ## görünmez duvarlar. StaticBody2D olduğu için move_and_slide() kullanan tüm
-## CharacterBody2D'ler (Player, Enemy) otomatik olarak buna çarpar, ekstra kod gerekmez.
-const WALL_THICKNESS := 64.0
-
+## CharacterBody2D'ler otomatik olarak buna çarpar, ekstra kod gerekmez.
 func _build_world_bounds() -> void:
-	_add_wall(Vector2(WORLD_SIZE.x / 2.0, -WALL_THICKNESS / 2.0), Vector2(WORLD_SIZE.x + WALL_THICKNESS * 2.0, WALL_THICKNESS))
-	_add_wall(Vector2(WORLD_SIZE.x / 2.0, WORLD_SIZE.y + WALL_THICKNESS / 2.0), Vector2(WORLD_SIZE.x + WALL_THICKNESS * 2.0, WALL_THICKNESS))
-	_add_wall(Vector2(-WALL_THICKNESS / 2.0, WORLD_SIZE.y / 2.0), Vector2(WALL_THICKNESS, WORLD_SIZE.y + WALL_THICKNESS * 2.0))
-	_add_wall(Vector2(WORLD_SIZE.x + WALL_THICKNESS / 2.0, WORLD_SIZE.y / 2.0), Vector2(WALL_THICKNESS, WORLD_SIZE.y + WALL_THICKNESS * 2.0))
+	var half := WALL_THICKNESS / 2.0
+	var wide := Vector2(WORLD_SIZE.x + WALL_THICKNESS * 2.0, WALL_THICKNESS)
+	var tall := Vector2(WALL_THICKNESS, WORLD_SIZE.y + WALL_THICKNESS * 2.0)
+	_add_wall(Vector2(WORLD_SIZE.x / 2.0, -half), wide)
+	_add_wall(Vector2(WORLD_SIZE.x / 2.0, WORLD_SIZE.y + half), wide)
+	_add_wall(Vector2(-half, WORLD_SIZE.y / 2.0), tall)
+	_add_wall(Vector2(WORLD_SIZE.x + half, WORLD_SIZE.y / 2.0), tall)
 
 func _add_wall(pos: Vector2, size: Vector2) -> void:
 	var body := StaticBody2D.new()
@@ -161,65 +84,6 @@ func _add_wall(pos: Vector2, size: Vector2) -> void:
 	body.add_child(shape)
 	add_child(body)
 
-## Ağaç/çalı görselleri Kenney "Roguelike/RPG Pack" spritesheet'inden atlas
-## koordinatıyla (col, row) alınır, ayrı dosya gerekmez.
-const TREE_ROUND_COORD := Vector2i(13, 10)
-const TREE_PINE_COORD := Vector2i(16, 10)
-const BUSH_COORD := Vector2i(21, 9)
-const DECOR_COUNT := 70
-
-func _make_decor_texture(coord: Vector2i) -> AtlasTexture:
-	var pitch := TILE_SIZE + 1
-	var atlas := AtlasTexture.new()
-	atlas.atlas = load("res://assets/tiles/roguelike_sheet.png")
-	atlas.region = Rect2(coord.x * pitch, coord.y * pitch, TILE_SIZE, TILE_SIZE)
-	return atlas
-
-## Dünyaya rastgele ağaç/çalı serpiştirir (köy alanına dokunmaz). Görsel amaçlı,
-## çarpışması yok — üzerinden yürünebilir (kapsamı basit tutmak için bilinçli tercih).
-func _scatter_decorations() -> void:
-	var coords := [TREE_ROUND_COORD, TREE_PINE_COORD, TREE_ROUND_COORD, TREE_PINE_COORD, BUSH_COORD]
-	var village_center := WORLD_SIZE / 2.0
-	for i in DECOR_COUNT:
-		var pos := Vector2(randf_range(40, WORLD_SIZE.x - 40), randf_range(40, WORLD_SIZE.y - 40))
-		if pos.distance_to(village_center) < VILLAGE_RADIUS or _is_on_path(pos):
-			continue
-		var sprite := Sprite2D.new()
-		sprite.texture = _make_decor_texture(coords[randi() % coords.size()])
-		sprite.position = pos
-		add_child(sprite)
-
-## Spawn noktasının etrafına başlangıç köyü: iki ev + basit taban çarpışması
-## (evin içinden yürünemesin diye), üstlerine binilemez ama etrafında dolaşılabilir.
-func _build_village() -> void:
-	var village_center := WORLD_SIZE / 2.0
-	var houses := [
-		{"file": "res://assets/village/house_orange.png", "offset": Vector2(-90, -70)},
-		{"file": "res://assets/village/house_blue.png", "offset": Vector2(80, -60)},
-	]
-	for house_data in houses:
-		var tex: Texture2D = load(house_data["file"])
-		var pos: Vector2 = village_center + house_data["offset"]
-
-		var sprite := Sprite2D.new()
-		sprite.texture = tex
-		sprite.position = pos
-		add_child(sprite)
-
-		var body := StaticBody2D.new()
-		body.position = pos + Vector2(0, tex.get_height() * 0.22)
-		var shape := CollisionShape2D.new()
-		var rect := RectangleShape2D.new()
-		rect.size = Vector2(tex.get_width() * 0.75, tex.get_height() * 0.3)
-		shape.shape = rect
-		body.add_child(shape)
-		add_child(body)
-
-	var stall := Sprite2D.new()
-	stall.texture = load("res://assets/village/market_stall.png")
-	stall.position = village_center + Vector2(-10, 50)
-	add_child(stall)
-
 func _spawn_player() -> CharacterBody2D:
 	var player: CharacterBody2D = load("res://scenes/Player.tscn").instantiate()
 	player.position = WORLD_SIZE / 2.0
@@ -228,7 +92,7 @@ func _spawn_player() -> CharacterBody2D:
 
 func _attach_camera(target: Node2D) -> void:
 	var cam := Camera2D.new()
-	cam.zoom = Vector2(2.5, 2.5) # 16px tile'lar/sprite'lar mobilde okunaklı büyüklükte görünsün (Godot'ta yüksek zoom = yakınlaşma)
+	cam.zoom = Vector2(2.5, 2.5) # 16px tile/sprite'lar mobilde okunaklı boyutta görünsün
 	cam.limit_left = 0
 	cam.limit_top = 0
 	cam.limit_right = int(WORLD_SIZE.x)
@@ -240,15 +104,15 @@ func _attach_camera(target: Node2D) -> void:
 func _add_touch_controls() -> void:
 	add_child(load("res://scenes/TouchControls.tscn").instantiate())
 
+## Kasabanın, yolların ve gölün dışında bir doğma noktası bulur.
 func _random_enemy_position() -> Vector2:
-	var village_center := WORLD_SIZE / 2.0
 	var pos := Vector2.ZERO
-	for attempt in 10:
+	for attempt in 20:
 		pos = Vector2(
 			randf_range(ENEMY_SPAWN_MARGIN, WORLD_SIZE.x - ENEMY_SPAWN_MARGIN),
 			randf_range(ENEMY_SPAWN_MARGIN, WORLD_SIZE.y - ENEMY_SPAWN_MARGIN)
 		)
-		if pos.distance_to(village_center) >= VILLAGE_RADIUS:
+		if _gen.is_spawn_safe(pos):
 			break
 	return pos
 
@@ -273,10 +137,9 @@ func _spawn_pickup(pos: Vector2) -> void:
 	add_child(pickup)
 
 ## Ekranı olmayan (headless/server) ortamda görsel doğrulama için: proje
-## `-- --screenshot` argümanıyla çalıştırılırsa oyuncunun hemen yanına garanti
-## menzilde bir test canavarı koyup öldürür, üzerine düşen altını toplar, sonra
-## res://screenshot.png'ye kaydedip çıkar. Oyun mantığının bir parçası değil,
-## sadece geliştirici aracı.
+## `-- --screenshot` argümanıyla çalıştırılırsa oyuncunun yanına garanti menzilde
+## bir test canavarı koyup öldürür, düşen altını toplar, sonra
+## res://screenshot.png'ye kaydedip çıkar. Oyun mantığının parçası değil.
 func _maybe_take_dev_screenshot() -> void:
 	if "--screenshot" not in OS.get_cmdline_user_args():
 		return
@@ -294,7 +157,6 @@ func _maybe_take_dev_screenshot() -> void:
 
 	print("Test canavarı hâlâ hayatta mı: ", is_instance_valid(dummy))
 
-	# Ölünce düşen altını toplamak için üzerine doğru birazcık daha yürü.
 	InputBridge.set_move_vector(Vector2.RIGHT)
 	await get_tree().create_timer(0.4).timeout
 	InputBridge.set_move_vector(Vector2.ZERO)
