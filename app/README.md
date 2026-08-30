@@ -98,6 +98,17 @@ görsel editörde gezinmek istersen:
 - [x] Faz 2 — Savaş çekirdeği (saldırı, HP, ölüm/respawn, 1 canavar tipi)
 - [x] Faz 3 — Leveling + loot (XP, level atlama, stat artışı, altın drop)
 - [x] Faz 4 (kısmen) — Asset entegrasyonu + canavar çeşitliliği (goblin/skelet/
-      orc_warrior/big_demon), mesafeye göre zorluk eğrisi. Kalan: birden fazla
+      orc_warrior/big_demon), mesafeye göre zorluk eğrisi, hedef kilitleme
+      sistemi (canavarlar sadece hedeflenince saldırır), canlı minimap + büyük
+      harita, HP/MP/XP bar UI, dünya sınırı duvarları. Kalan: birden fazla
       görsel bölge/biome, başlangıç köyü.
-- [ ] Faz 5 — Polish + Android export (HUD süslemeleri, ses, save/load, gerçek cihaz testi)
+- [ ] Faz 5 — Polish + Android export (ses, save/load, HUD panel süslemeleri
+      [Fantasy UI Borders hazır bekliyor], gerçek cihaz testi)
+
+### Kullanılmayı bekleyen hazır malzeme (indirildi, henüz entegre edilmedi)
+- 9 ek oynanabilir karakter sınıfı (elf, büyücü, cüce, kertenkele-adam × erkek/kadın)
+- Ek canavar tipleri (zombi, ork şaman, imp, ogre, chort vb.)
+- Fantasy UI Borders paneli (şu an sadece buton dokusu olarak kullanılıyor,
+  HP/MP/XP çubuklarının çerçevesi için de kullanılabilir)
+- Village (köy) binaları (zedpxl) — başlangıç köyü bölgesi için
+- HP kalp ikonları — artık bar UI kullanıldığı için muhtemelen gereksiz kaldı
