@@ -36,8 +36,10 @@ func _ready() -> void:
 
 	_base_center = Vector2(MARGIN + BASE_SIZE / 2.0, viewport_size.y - MARGIN - BASE_SIZE / 2.0)
 	_knob_center = _base_center
-	_base_visual = _make_pad(BASE_SIZE, Color(0.9, 0.9, 0.85, 0.55))
-	_knob_visual = _make_pad(KNOB_SIZE, Color(1, 1, 1, 0.85))
+	# Taban koyu, topuz açık: açık zeminlerde (kasaba meydanı gibi) beyaz bir
+	# taban neredeyse görünmez oluyordu; koyu taban her arka planda okunuyor.
+	_base_visual = _make_pad(BASE_SIZE, Color(0.12, 0.10, 0.09, 0.62))
+	_knob_visual = _make_pad(KNOB_SIZE, Color(0.96, 0.93, 0.86, 0.95))
 	add_child(_base_visual)
 	add_child(_knob_visual)
 
@@ -58,16 +60,17 @@ func _make_pad(size: float, color: Color) -> TextureRect:
 	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return pad
 
+## Butonun üstüne kılıç ikonu: metin yerine ikon dilden bağımsız ve daha okunaklı.
 func _add_attack_label(parent: TextureRect) -> void:
-	var label := Label.new()
-	label.text = "VUR"
-	label.add_theme_font_size_override("font_size", 18)
-	label.add_theme_color_override("font_color", Color(0.25, 0.05, 0.05))
-	label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(label)
+	var icon := TextureRect.new()
+	icon.texture = load("res://assets/ui/icon_sword.png")
+	icon.ignore_texture_size = true
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var icon_size := ATTACK_BUTTON_SIZE * 0.55
+	icon.size = Vector2(icon_size, icon_size)
+	icon.position = (parent.size - icon.size) / 2.0
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(icon)
 
 func _update_visuals() -> void:
 	_base_visual.position = _base_center - _base_visual.size / 2.0

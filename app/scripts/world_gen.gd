@@ -72,6 +72,18 @@ func build() -> void:
 	_build_forests()
 	_scatter_ground_detail()
 
+## Harita/minimap'in şematik çizim için ihtiyaç duyduğu arazi bilgisi. Buradan
+## verilir ki yerleşim ölçüleri tek kaynakta (bu dosyadaki sabitlerde) kalsın.
+func get_map_features() -> Dictionary:
+	var c := Vector2(_center_tile) * TILE
+	var plaza_extent := Vector2(PLAZA_HALF) * TILE
+	return {
+		"center": c,
+		"plaza": Rect2(c - plaza_extent, plaza_extent * 2.0),
+		"lake": _tile_rect_to_world(LAKE_RECT),
+		"road_width": float((ROAD_HALF_TILES * 2 + 1) * TILE),
+	}
+
 func _is_in_plaza(pos: Vector2) -> bool:
 	var c := Vector2(_center_tile) * TILE
 	return absf(pos.x - c.x) <= PLAZA_HALF.x * TILE and absf(pos.y - c.y) <= PLAZA_HALF.y * TILE

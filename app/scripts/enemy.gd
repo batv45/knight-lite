@@ -92,7 +92,9 @@ func _ready() -> void:
 
 	_name_label = Label.new()
 	_name_label.text = "%s Lv.%d" % [get_display_name(), get_level()]
-	_name_label.add_theme_font_size_override("font_size", 10)
+	# Kamera 2.5x zoom'da olduğu için küçük punto ekranda yeterince okunuyor;
+	# daha büyüğü canavar sprite'ını bastırıyor.
+	_name_label.add_theme_font_size_override("font_size", 7)
 	_name_label.add_theme_color_override("font_color", Color(1, 1, 1))
 	_name_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
 	_name_label.add_theme_constant_override("shadow_offset_x", 1)

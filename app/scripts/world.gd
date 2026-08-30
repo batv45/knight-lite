@@ -36,6 +36,7 @@ func _ready() -> void:
 func _setup_hud() -> void:
 	_hud = load("res://scenes/HUD.tscn").instantiate()
 	_hud.world_size = WORLD_SIZE
+	_hud.map_features = _gen.get_map_features()
 	add_child(_hud)
 	_player.health_changed.connect(_hud.set_player_hp)
 	_player.mp_changed.connect(_hud.set_player_mp)

@@ -8,11 +8,14 @@ extends Control
 signal tapped
 
 var world_size := Vector2(2400, 1350)
+var map_features := {} # bkz. WorldGen.get_map_features()
 
-const MINIMAP_SIZE := Vector2(120, 90)
-const MARGIN := 16.0
-const ENEMY_DOT_RADIUS := 2.0
-const PLAYER_DOT_RADIUS := 3.0
+## Dünya oranıyla (2400x1350 = 16:9) aynı tutuluyor; farklı oranda üstte/altta
+## boş bantlar oluşup çerçevenin içi açıkta kalıyordu.
+const MINIMAP_SIZE := Vector2(128, 72)
+const MARGIN := 22.0
+const ENEMY_DOT_RADIUS := 2.2
+const PLAYER_DOT_RADIUS := 3.2
 
 func _ready() -> void:
 	var viewport_size := get_viewport().get_visible_rect().size
@@ -20,58 +23,19 @@ func _ready() -> void:
 	size = MINIMAP_SIZE
 	mouse_filter = Control.MOUSE_FILTER_IGNORE # kendi _input()'umuzu kullanıyoruz
 
-	var bg := ColorRect.new()
-	bg.color = Color(0.05, 0.08, 0.05, 0.8)
-	bg.size = MINIMAP_SIZE
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)
-
 func _process(_delta: float) -> void:
 	queue_redraw() # canlı: her karede güncel konumlarla yeniden çiz
 
 func _input(event: InputEvent) -> void:
-	var pos: Vector2
-	var pressed := false
-	if event is InputEventScreenTouch and event.pressed:
-		pos = event.position
-		pressed = true
-	elif event is InputEventMouseButton and event.pressed:
-		pos = event.position
-		pressed = true
-
-	if pressed and Rect2(position, size).has_point(pos):
+	var pressed: bool = (event is InputEventScreenTouch and event.pressed) \
+		or (event is InputEventMouseButton and event.pressed)
+	if pressed and Rect2(position, size).has_point(event.position):
 		tapped.emit()
 
 func _draw() -> void:
-	var available := MINIMAP_SIZE - Vector2(6, 6)
-	var scale_factor: float = min(available.x / world_size.x, available.y / world_size.y)
-	var map_size := world_size * scale_factor
-	var origin := (MINIMAP_SIZE - map_size) / 2.0
+	var scale_factor: float = minf(size.x / world_size.x, size.y / world_size.y)
+	var origin := (size - world_size * scale_factor) / 2.0
 
-	draw_rect(Rect2(origin, map_size), Color(0.22, 0.42, 0.22, 1.0))
-	draw_rect(Rect2(Vector2.ZERO, MINIMAP_SIZE), Color(1, 1, 1, 0.7), false, 1.5)
-
-	for enemy in get_tree().get_nodes_in_group("enemies"):
-		if not is_instance_valid(enemy):
-			continue
-		var p: Vector2 = origin + enemy.global_position * scale_factor
-		var type_id: String = enemy.type_id if "type_id" in enemy else "goblin"
-		draw_circle(p, ENEMY_DOT_RADIUS, _color_for_type(type_id))
-
-	var player := get_tree().get_first_node_in_group("player")
-	if player and is_instance_valid(player):
-		var pp: Vector2 = origin + player.global_position * scale_factor
-		draw_circle(pp, PLAYER_DOT_RADIUS, Color(0.3, 0.6, 1.0))
-
-func _color_for_type(type_id: String) -> Color:
-	match type_id:
-		"goblin":
-			return Color(0.3, 0.85, 0.3)
-		"skelet":
-			return Color(0.9, 0.9, 0.85)
-		"orc_warrior":
-			return Color(0.65, 0.7, 0.25)
-		"big_demon":
-			return Color(0.9, 0.15, 0.15)
-		_:
-			return Color.YELLOW
+	MapDraw.draw_terrain(self, map_features, world_size, origin, scale_factor)
+	MapDraw.draw_enemies(self, get_tree(), origin, scale_factor, ENEMY_DOT_RADIUS)
+	MapDraw.draw_player(self, get_tree(), origin, scale_factor, PLAYER_DOT_RADIUS)
