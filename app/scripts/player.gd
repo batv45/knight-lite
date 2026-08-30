@@ -1,6 +1,6 @@
 extends CharacterBody2D
-## Faz 3: hareket + savaş + leveling. Görsel şimdilik düz renkli kare (placeholder) —
-## asset paketi seçilince bu kısım gerçek sprite/AnimatedSprite2D ile değişecek.
+## Faz 3 + asset entegrasyonu: hareket + savaş + leveling.
+## Görsel: 0x72'nin "DungeonTilesetII" paketinden şövalye (knight_m) sprite'ları.
 
 signal died
 signal health_changed(current: int, max_hp: int)
@@ -9,7 +9,7 @@ signal leveled_up(new_level: int)
 signal gold_changed(amount: int)
 
 const SPEED := 180.0
-const BODY_SIZE := 32.0
+const BODY_SIZE := 16.0
 const BASE_MAX_HP := 100
 const BASE_ATTACK_DAMAGE := 20
 const HP_PER_LEVEL := 20
@@ -17,6 +17,8 @@ const ATTACK_PER_LEVEL := 5
 const ATTACK_RANGE := 46.0
 const ATTACK_COOLDOWN := 0.4
 const RESPAWN_DELAY := 1.5
+
+const SPRITE_DIR := "res://assets/characters/knight/"
 
 var hp := BASE_MAX_HP
 var max_hp := BASE_MAX_HP
@@ -31,7 +33,7 @@ var can_attack := true
 var is_dead := false
 var spawn_point := Vector2.ZERO
 
-var _visual: ColorRect
+var _visual: AnimatedSprite2D
 var _collision_shape: CollisionShape2D
 var _health_bar: HealthBar
 
@@ -39,12 +41,10 @@ func _ready() -> void:
 	add_to_group("player")
 	spawn_point = position
 
-	_visual = ColorRect.new()
-	_visual.color = Color(0.2, 0.6, 1.0) # mavi kare = karakter
-	_visual.size = Vector2(BODY_SIZE, BODY_SIZE)
-	_visual.pivot_offset = _visual.size / 2.0
-	_visual.position = -_visual.size / 2.0
-	_visual.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_visual = AnimatedSprite2D.new()
+	_visual.sprite_frames = _build_sprite_frames()
+	_visual.animation = "idle"
+	_visual.play()
 	add_child(_visual)
 
 	_collision_shape = CollisionShape2D.new()
@@ -58,6 +58,24 @@ func _ready() -> void:
 	add_child(_health_bar)
 	_health_bar.update_ratio(1.0)
 
+func _build_sprite_frames() -> SpriteFrames:
+	var frames := SpriteFrames.new()
+	frames.remove_animation("default")
+
+	frames.add_animation("idle")
+	frames.set_animation_speed("idle", 6.0)
+	frames.set_animation_loop("idle", true)
+	for i in 4:
+		frames.add_frame("idle", load(SPRITE_DIR + "knight_m_idle_anim_f%d.png" % i))
+
+	frames.add_animation("run")
+	frames.set_animation_speed("run", 10.0)
+	frames.set_animation_loop("run", true)
+	for i in 4:
+		frames.add_frame("run", load(SPRITE_DIR + "knight_m_run_anim_f%d.png" % i))
+
+	return frames
+
 func _physics_process(_delta: float) -> void:
 	if is_dead:
 		velocity = Vector2.ZERO
@@ -69,8 +87,15 @@ func _physics_process(_delta: float) -> void:
 	velocity = dir * SPEED
 	move_and_slide()
 
+	_update_animation(dir)
+
 	if InputBridge.consume_attack_request():
 		_attack()
+
+func _update_animation(dir: Vector2) -> void:
+	_visual.animation = "run" if dir.length() > 0.1 else "idle"
+	if abs(dir.x) > 0.1:
+		_visual.flip_h = dir.x < 0.0
 
 func _attack() -> void:
 	if not can_attack or is_dead:

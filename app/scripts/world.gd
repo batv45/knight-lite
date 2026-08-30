@@ -32,14 +32,32 @@ func _ready() -> void:
 
 	_maybe_take_dev_screenshot()
 
+## Kenney "Roguelike/RPG Pack" spritesheet'i: 16x16 tile, tile'lar arası 1px boşluk.
+## Koordinatlar spritesheet'i inceleyip bulundu (bkz. app/assets/tiles/).
+const TILE_SIZE := 16
+const GRASS_COORD := Vector2i(5, 0)
+
 func _build_ground() -> void:
-	var ground := ColorRect.new()
-	ground.color = Color(0.16, 0.35, 0.16) # koyu yeşil = zemin (placeholder)
-	ground.size = WORLD_SIZE
-	ground.position = Vector2.ZERO
+	var tile_set := TileSet.new()
+	tile_set.tile_size = Vector2i(TILE_SIZE, TILE_SIZE)
+
+	var atlas := TileSetAtlasSource.new()
+	atlas.texture = load("res://assets/tiles/roguelike_sheet.png")
+	atlas.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
+	atlas.separation = Vector2i(1, 1)
+	atlas.create_tile(GRASS_COORD)
+	var source_id := tile_set.add_source(atlas)
+
+	var ground := TileMapLayer.new()
+	ground.tile_set = tile_set
 	ground.z_index = -10
-	ground.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(ground)
+
+	var tiles_x := int(WORLD_SIZE.x / TILE_SIZE)
+	var tiles_y := int(WORLD_SIZE.y / TILE_SIZE)
+	for y in tiles_y:
+		for x in tiles_x:
+			ground.set_cell(Vector2i(x, y), source_id, GRASS_COORD)
 
 func _spawn_player() -> CharacterBody2D:
 	var player: CharacterBody2D = load("res://scenes/Player.tscn").instantiate()
@@ -49,6 +67,7 @@ func _spawn_player() -> CharacterBody2D:
 
 func _attach_camera(target: Node2D) -> void:
 	var cam := Camera2D.new()
+	cam.zoom = Vector2(2.5, 2.5) # 16px tile'lar/sprite'lar mobilde okunaklı büyüklükte görünsün (Godot'ta yüksek zoom = yakınlaşma)
 	cam.limit_left = 0
 	cam.limit_top = 0
 	cam.limit_right = int(WORLD_SIZE.x)

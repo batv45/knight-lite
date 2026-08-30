@@ -3,15 +3,17 @@
 Basit, tek oyunculu, 2D üstten görünüm açık dünya aksiyon-RPG (Knight Online'dan
 esinlenilmiş "canavar öldür, level kas" döngüsü). Godot 4 + GDScript.
 
-## Şu anki durum: Faz 3 — Leveling + loot
+## Şu anki durum: Faz 3 + asset entegrasyonu
 
 Bu fazda oynanabilir olan:
-- Karakter (mavi kare, placeholder) WASD / ok tuşlarıyla ya da sol alttaki sanal
-  joystick ile hareket eder, kamera onu takip eder
+- Karakter: gerçek şövalye sprite'ı (idle/run animasyonlu, yönüne göre flip),
+  WASD / ok tuşlarıyla ya da sol alttaki sanal joystick ile hareket eder,
+  kamera onu takip eder (2.5x zoom, mobilde okunaklı boyut)
 - Sağ alttaki kırmızı buton (veya klavyede boşluk/enter) ile saldırı: bakılan
   yönde menzildeki canavarlara hasar verir
-- Canavarlar (kırmızı kare, placeholder): Idle → oyuncuyu görünce Chase →
-  menzile girince Attack state machine'i ile davranır, geri hasar verir
+- Canavarlar: gerçek goblin sprite'ı (idle/run animasyonlu) — Idle → oyuncuyu
+  görünce Chase → menzile girince Attack state machine'i ile davranır, geri hasar verir
+- Zemin: gerçek çim tile'ı (Kenney Roguelike/RPG Pack), TileMapLayer ile döşenmiş
 - Her iki tarafta da HP çubuğu, HUD'da can, seviye/XP, altın ve öldürülen
   canavar sayacı
 - Canavar öldürülünce: oyuncuya XP verilir, yere altın drop'u (sarı kare)
@@ -21,7 +23,10 @@ Bu fazda oynanabilir olan:
   tamamen dolar, ekranda "Seviye N!" bildirimi belirir
 - Oyuncu ölünce kısa bir süre sonra başlangıç noktasında tam canla yeniden doğar
 
-Henüz yok: gerçek asset'ler, birden fazla bölge/zorluk eğrisi, ekipman/envanter — bunlar sonraki fazlarda.
+Asset kaynakları ve lisansları için [`CREDITS.md`](CREDITS.md)'e bak.
+
+Henüz yok: birden fazla bölge/zorluk eğrisi, canavar çeşitliliği, ekipman/envanter,
+UI panel süslemeleri — bunlar sonraki fazlarda (Faz 4).
 
 ## Sunucu tarafında hazır altyapı
 
