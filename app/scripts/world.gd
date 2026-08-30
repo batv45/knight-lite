@@ -1,12 +1,27 @@
 extends Node2D
-## Faz 3 test dünyası: zemin + oyuncu + kamera + touch kontrol + HUD + canavarlar + loot.
+## Faz 4 test dünyası: zemin + oyuncu + kamera + touch kontrol + HUD + canavarlar + loot.
+## Canavar tipi, spawn noktasına olan mesafeye göre seçilir (zorluk eğrisi).
 ## Canavar öldüğünde: oyuncuya XP verilir, dünyaya bir altın drop'u düşer, birkaç
 ## saniye sonra rastgele bir yerde yeni canavar doğar (öldür-kas-tekrar döngüsü).
 
 const WORLD_SIZE := Vector2(2400, 1350)
-const ENEMY_COUNT := 3
+const ENEMY_COUNT := 10
 const ENEMY_RESPAWN_DELAY := 4.0
 const ENEMY_SPAWN_MARGIN := 200.0
+
+## Zorluk eğrisi: spawn noktasına (dünya merkezi) olan mesafeye göre canavar tipi
+## seçilir. Merkeze yakın zayıf canavarlar, uzaklaştıkça güçlüleri, en uçlarda
+## nadiren boss-tier (big_demon) çıkar.
+func _pick_enemy_type(pos: Vector2) -> String:
+	var dist := pos.distance_to(WORLD_SIZE / 2.0)
+	if dist < 400.0:
+		return "goblin"
+	elif dist < 750.0:
+		return "goblin" if randf() < 0.5 else "skelet"
+	elif dist < 1050.0:
+		return "skelet" if randf() < 0.7 else "orc_warrior"
+	else:
+		return "big_demon" if randf() < 0.15 else "orc_warrior"
 
 var _hud: CanvasLayer
 var _player: CharacterBody2D
@@ -85,8 +100,9 @@ func _random_enemy_position() -> Vector2:
 		randf_range(ENEMY_SPAWN_MARGIN, WORLD_SIZE.y - ENEMY_SPAWN_MARGIN)
 	)
 
-func _spawn_enemy_at(pos: Vector2) -> CharacterBody2D:
+func _spawn_enemy_at(pos: Vector2, forced_type: String = "") -> CharacterBody2D:
 	var enemy: CharacterBody2D = load("res://scenes/Enemy.tscn").instantiate()
+	enemy.type_id = forced_type if forced_type != "" else _pick_enemy_type(pos)
 	enemy.position = pos
 	add_child(enemy)
 	enemy.died.connect(func(xp_reward: int) -> void:
@@ -114,7 +130,7 @@ func _maybe_take_dev_screenshot() -> void:
 		return
 	await get_tree().create_timer(0.2).timeout
 
-	var dummy := _spawn_enemy_at(_player.global_position + Vector2(40, 0))
+	var dummy := _spawn_enemy_at(_player.global_position + Vector2(40, 0), "goblin")
 
 	InputBridge.set_move_vector(Vector2.RIGHT)
 	await get_tree().create_timer(0.15).timeout

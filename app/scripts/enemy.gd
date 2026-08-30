@@ -1,25 +1,48 @@
 extends CharacterBody2D
-## Faz 2 + asset entegrasyonu: tek canavar tipi (goblin). Basit state machine:
-## Idle -> oyuncuyu görünce Chase -> menzile girince Attack -> HP 0 olunca Dead.
-## Görsel: 0x72'nin "DungeonTilesetII" paketinden goblin sprite'ları.
+## Faz 4: veri odaklı çoklu canavar tipi. `type_id` (world.gd tarafından add_child'dan
+## ÖNCE set edilir) hangi sprite/stat setinin kullanılacağını belirler.
+## State machine: Idle -> oyuncuyu görünce Chase -> menzile girince Attack ->
+## HP 0 olunca Dead. Görsel: 0x72'nin "DungeonTilesetII" paketinden.
 
 signal died(xp_reward: int)
 
 enum State { IDLE, CHASE, ATTACK, DEAD }
 
-const BODY_SIZE := 16.0
-const MAX_HP := 40
-const SPEED := 90.0
-const DETECT_RANGE := 220.0
-const ATTACK_RANGE := 34.0
-const ATTACK_DAMAGE := 10
-const ATTACK_COOLDOWN := 1.0
-const XP_REWARD := 15 # Faz 3'te leveling sistemi bu değeri kullanacak
+## Her canavar tipinin sprite klasörü ve dengelemesi. Yeni bir tip eklemek için
+## sadece buraya bir satır eklemek ve app/assets/monsters/<id>/ altına
+## "<id>_idle_anim_f0..3.png" + "<id>_run_anim_f0..3.png" koymak yeterli.
+const ENEMY_TYPES := {
+	"goblin": {
+		"body_size": Vector2(16, 16), "max_hp": 40, "speed": 90.0,
+		"detect_range": 220.0, "attack_range": 34.0, "attack_damage": 10, "xp_reward": 15,
+	},
+	"skelet": {
+		"body_size": Vector2(16, 16), "max_hp": 65, "speed": 85.0,
+		"detect_range": 240.0, "attack_range": 34.0, "attack_damage": 15, "xp_reward": 30,
+	},
+	"orc_warrior": {
+		"body_size": Vector2(16, 23), "max_hp": 100, "speed": 75.0,
+		"detect_range": 260.0, "attack_range": 38.0, "attack_damage": 20, "xp_reward": 50,
+	},
+	"big_demon": {
+		"body_size": Vector2(32, 36), "max_hp": 220, "speed": 65.0,
+		"detect_range": 280.0, "attack_range": 46.0, "attack_damage": 35, "xp_reward": 150,
+	},
+}
+const DEFAULT_TYPE := "goblin"
 
-const SPRITE_DIR := "res://assets/monsters/goblin/"
+## world.gd bunu add_child()'dan ÖNCE set eder (Player'ın position'ı gibi).
+var type_id := DEFAULT_TYPE
 
-var hp := MAX_HP
 var state: int = State.IDLE
+var hp: int
+var max_hp: int
+var speed: float
+var detect_range: float
+var attack_range: float
+var attack_damage: int
+var xp_reward: int
+var body_size: Vector2
 
 var _attack_ready := true
 var _player: Node2D
@@ -30,6 +53,16 @@ var _health_bar: HealthBar
 func _ready() -> void:
 	add_to_group("enemies")
 
+	var cfg: Dictionary = ENEMY_TYPES.get(type_id, ENEMY_TYPES[DEFAULT_TYPE])
+	body_size = cfg["body_size"]
+	max_hp = cfg["max_hp"]
+	hp = max_hp
+	speed = cfg["speed"]
+	detect_range = cfg["detect_range"]
+	attack_range = cfg["attack_range"]
+	attack_damage = cfg["attack_damage"]
+	xp_reward = cfg["xp_reward"]
+
 	_visual = AnimatedSprite2D.new()
 	_visual.sprite_frames = _build_sprite_frames()
 	_visual.animation = "idle"
@@ -38,18 +71,19 @@ func _ready() -> void:
 
 	_collision_shape = CollisionShape2D.new()
 	var rect := RectangleShape2D.new()
-	rect.size = Vector2(BODY_SIZE - 4.0, BODY_SIZE - 4.0)
+	rect.size = body_size - Vector2(4, 4)
 	_collision_shape.shape = rect
 	add_child(_collision_shape)
 
 	_health_bar = HealthBar.new()
-	_health_bar.position = Vector2(0, -BODY_SIZE / 2.0 - 10.0)
+	_health_bar.position = Vector2(0, -body_size.y / 2.0 - 10.0)
 	add_child(_health_bar)
 	_health_bar.update_ratio(1.0)
 
 	_player = get_tree().get_first_node_in_group("player")
 
 func _build_sprite_frames() -> SpriteFrames:
+	var dir := "res://assets/monsters/%s/" % type_id
 	var frames := SpriteFrames.new()
 	frames.remove_animation("default")
 
@@ -57,13 +91,13 @@ func _build_sprite_frames() -> SpriteFrames:
 	frames.set_animation_speed("idle", 6.0)
 	frames.set_animation_loop("idle", true)
 	for i in 4:
-		frames.add_frame("idle", load(SPRITE_DIR + "goblin_idle_anim_f%d.png" % i))
+		frames.add_frame("idle", load(dir + "%s_idle_anim_f%d.png" % [type_id, i]))
 
 	frames.add_animation("run")
 	frames.set_animation_speed("run", 10.0)
 	frames.set_animation_loop("run", true)
 	for i in 4:
-		frames.add_frame("run", load(SPRITE_DIR + "goblin_run_anim_f%d.png" % i))
+		frames.add_frame("run", load(dir + "%s_run_anim_f%d.png" % [type_id, i]))
 
 	return frames
 
@@ -76,14 +110,14 @@ func _physics_process(_delta: float) -> void:
 	var to_player: Vector2 = _player.global_position - global_position
 	var dist := to_player.length()
 
-	if dist <= ATTACK_RANGE:
+	if dist <= attack_range:
 		state = State.ATTACK
 		velocity = Vector2.ZERO
 		if _attack_ready:
 			_attack()
-	elif dist <= DETECT_RANGE:
+	elif dist <= detect_range:
 		state = State.CHASE
-		velocity = to_player.normalized() * SPEED
+		velocity = to_player.normalized() * speed
 	else:
 		state = State.IDLE
 		velocity = Vector2.ZERO
@@ -98,15 +132,15 @@ func _update_animation() -> void:
 
 func _attack() -> void:
 	_attack_ready = false
-	_player.take_damage(ATTACK_DAMAGE)
-	await get_tree().create_timer(ATTACK_COOLDOWN).timeout
+	_player.take_damage(attack_damage)
+	await get_tree().create_timer(1.0).timeout
 	_attack_ready = true
 
 func take_damage(amount: int) -> void:
 	if state == State.DEAD:
 		return
 	hp = max(hp - amount, 0)
-	_health_bar.update_ratio(float(hp) / float(MAX_HP))
+	_health_bar.update_ratio(float(hp) / float(max_hp))
 	_flash_hit()
 	if hp <= 0:
 		_die()
@@ -119,7 +153,7 @@ func _flash_hit() -> void:
 func _die() -> void:
 	state = State.DEAD
 	_collision_shape.disabled = true
-	died.emit(XP_REWARD)
+	died.emit(xp_reward)
 	var tw := create_tween()
 	tw.tween_property(_visual, "scale", Vector2.ZERO, 0.3)
 	tw.parallel().tween_property(_health_bar, "scale", Vector2.ZERO, 0.15)

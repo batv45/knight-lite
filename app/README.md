@@ -3,7 +3,7 @@
 Basit, tek oyunculu, 2D üstten görünüm açık dünya aksiyon-RPG (Knight Online'dan
 esinlenilmiş "canavar öldür, level kas" döngüsü). Godot 4 + GDScript.
 
-## Şu anki durum: Faz 3 + asset entegrasyonu
+## Şu anki durum: Faz 4 (kısmen) — Asset entegrasyonu + canavar çeşitliliği
 
 Bu fazda oynanabilir olan:
 - Karakter: gerçek şövalye sprite'ı (idle/run animasyonlu, yönüne göre flip),
@@ -11,22 +11,27 @@ Bu fazda oynanabilir olan:
   kamera onu takip eder (2.5x zoom, mobilde okunaklı boyut)
 - Sağ alttaki kırmızı buton (veya klavyede boşluk/enter) ile saldırı: bakılan
   yönde menzildeki canavarlara hasar verir
-- Canavarlar: gerçek goblin sprite'ı (idle/run animasyonlu) — Idle → oyuncuyu
+- **4 canavar tipi**: goblin, iskelet (skelet), ork savaşçı (orc_warrior),
+  dev iblis (big_demon) — her biri gerçek sprite, kendi HP/hız/hasar/XP dengesi
+  ve görsel boyutuyla (dev iblis fark edilir şekilde daha büyük). Idle → oyuncuyu
   görünce Chase → menzile girince Attack state machine'i ile davranır, geri hasar verir
+- **Zorluk eğrisi**: spawn noktasına (dünya merkezi) olan mesafeye göre hangi
+  canavar tipinin çıkacağı belirlenir — merkeze yakın zayıf, uzaklaştıkça güçlü,
+  en uçlarda nadiren boss-tier (big_demon)
 - Zemin: gerçek çim tile'ı (Kenney Roguelike/RPG Pack), TileMapLayer ile döşenmiş
 - Her iki tarafta da HP çubuğu, HUD'da can, seviye/XP, altın ve öldürülen
   canavar sayacı
 - Canavar öldürülünce: oyuncuya XP verilir, yere altın drop'u (sarı kare)
   düşer — üzerinden geçilince toplanır; birkaç saniye sonra dünyada rastgele
-  bir yerde yeni canavar doğar (sürekli "öldür-kas-tekrar" döngüsü)
+  bir yerde (bulunduğu bölgeye uygun tipte) yeni canavar doğar
 - Yeterli XP toplanınca seviye atlanır: max can ve saldırı gücü artar, can
   tamamen dolar, ekranda "Seviye N!" bildirimi belirir
 - Oyuncu ölünce kısa bir süre sonra başlangıç noktasında tam canla yeniden doğar
 
 Asset kaynakları ve lisansları için [`CREDITS.md`](CREDITS.md)'e bak.
 
-Henüz yok: birden fazla bölge/zorluk eğrisi, canavar çeşitliliği, ekipman/envanter,
-UI panel süslemeleri — bunlar sonraki fazlarda (Faz 4).
+Henüz yok: birden fazla görsel bölge/biome, başlangıç köyü, ekipman/envanter,
+UI panel süslemeleri (Fantasy UI Borders hazır bekliyor) — bunlar sonraki fazlarda.
 
 ## Sunucu tarafında hazır altyapı
 
@@ -81,13 +86,18 @@ görsel editörde gezinmek istersen:
 - `InputBridge` (autoload, `scripts/input_bridge.gd`) klavye ve dokunmatik
   girdiyi tek bir arayüzde birleştirir. Yeni script'ler hep
   `InputBridge.get_move_vector()` kullanmalı, `Input` sınıfına doğrudan gitmemeli.
-- Placeholder görseller (`ColorRect`) asset paketi seçilince kolayca gerçek
-  sprite/`AnimatedSprite2D` ile değiştirilecek — oyun mantığı etkilenmeyecek.
+- Karakter/canavar görselleri gerçek sprite'lar; asset paketi/tip eklemek istersen
+  `player.gd`/`enemy.gd`'deki `SPRITE_DIR` / `ENEMY_TYPES` sözlüğüne bakılır.
+- `enemy.gd` veri odaklı: yeni bir canavar tipi eklemek için `ENEMY_TYPES`
+  sözlüğüne bir satır + `assets/monsters/<id>/` altına sprite koymak yeterli,
+  kodun geri kalanına dokunulmaz.
 
 ## Yol haritası
 
 - [x] Faz 1 — İskelet, hareket, kamera, touch kontrol
 - [x] Faz 2 — Savaş çekirdeği (saldırı, HP, ölüm/respawn, 1 canavar tipi)
 - [x] Faz 3 — Leveling + loot (XP, level atlama, stat artışı, altın drop)
-- [ ] Faz 4 — Dünya içeriği (birden fazla bölge/canavar tipi, zorluk eğrisi)
-- [ ] Faz 5 — Polish + Android export (HUD, ses, save/load, gerçek cihaz testi)
+- [x] Faz 4 (kısmen) — Asset entegrasyonu + canavar çeşitliliği (goblin/skelet/
+      orc_warrior/big_demon), mesafeye göre zorluk eğrisi. Kalan: birden fazla
+      görsel bölge/biome, başlangıç köyü.
+- [ ] Faz 5 — Polish + Android export (HUD süslemeleri, ses, save/load, gerçek cihaz testi)

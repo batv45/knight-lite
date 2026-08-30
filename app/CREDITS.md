@@ -4,9 +4,10 @@ Bu projede kullanılan üçüncü parti (kendi yapmadığımız) görsel varlık
 
 ## Kullanımda olanlar
 
-- **Karakter (şövalye) + canavar (goblin) sprite'ları**: [0x72 – DungeonTilesetII](https://0x72.itch.io/dungeontileset-ii)
+- **Karakter (şövalye) + canavar sprite'ları (goblin, skelet, orc_warrior, big_demon)**:
+  [0x72 – DungeonTilesetII](https://0x72.itch.io/dungeontileset-ii)
   Lisans: **CC0** (kamu malı, atıf gerekmez).
-  Dosyalar: `assets/characters/knight/`, `assets/monsters/goblin/`
+  Dosyalar: `assets/characters/knight/`, `assets/monsters/*/`
 
 - **Zemin tile'ı (çim)**: [Kenney – Roguelike/RPG Pack](https://kenney.nl/assets/roguelike-rpg-pack)
   Lisans: **CC0** (atıf gerekmez, "Kenney" kredisi vermek nazik bir jest ama zorunlu değil).
@@ -18,5 +19,7 @@ Bu projede kullanılan üçüncü parti (kendi yapmadığımız) görsel varlık
 - **Pixel 16 v2 village (free)** (zedpxl, itch.io) — başlangıç köyü binaları için
   Lisans: ticari kullanım serbest, atıf gerekmez, yeniden satış/AI-NFT kullanımı yasak.
 - 0x72 paketindeki diğer karakter sınıfları (elf, büyücü, cüce, kertenkele-adam) ve
-  canavar tipleri (iskelet, zombi, ork, dev iblis vb.) — Faz 4'te bölge/canavar
-  çeşitliliği eklenirken kullanılacak.
+  ek canavar tipleri (zombi, ork şaman, imp, ogre, chort vb.) — Faz 4'ün devamında
+  daha fazla bölge/çeşitlilik eklenirken kullanılabilir.
+- HP kalp ikonları (`assets/ui/ui_heart_*.png`) — HUD'da renkli çubuk yerine
+  kalp göstergesine geçilirse kullanılacak.
