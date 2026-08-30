@@ -26,7 +26,10 @@ kökünden `./sync-web.sh "açıklama"` çalıştırıp oraya push et.
 ## Hızlı yerel test
 
 ```bash
+# knight-lite monorepo kökünden:
 php -S 0.0.0.0:8080 -t web
+# knight-lite-web reposunun kendi kökünden:
+php -S 0.0.0.0:8080 -t .
 ```
 
 ## Yeni build yayınlama (Claude Code tarafından, komut satırından)
