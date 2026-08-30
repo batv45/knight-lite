@@ -10,6 +10,20 @@ func _ready() -> void:
 	var player := _spawn_player()
 	_attach_camera(player)
 	_add_touch_controls()
+	_maybe_take_dev_screenshot()
+
+## Ekranı olmayan (headless/server) ortamda görsel doğrulama için: proje
+## `-- --screenshot` argümanıyla çalıştırılırsa birkaç kare bekleyip
+## res://screenshot.png dosyasına kaydeder ve çıkar. Oyun mantığının bir
+## parçası değil, sadece geliştirici aracı.
+func _maybe_take_dev_screenshot() -> void:
+	if "--screenshot" not in OS.get_cmdline_user_args():
+		return
+	await get_tree().create_timer(0.5).timeout
+	var img := get_viewport().get_texture().get_image()
+	img.save_png("res://screenshot.png")
+	print("Screenshot kaydedildi: screenshot.png")
+	get_tree().quit()
 
 func _build_ground() -> void:
 	var ground := ColorRect.new()
