@@ -56,10 +56,7 @@ if ($magic !== "PK\x03\x04") {
 	fail(422, 'Geçerli bir APK/ZIP dosyası değil.');
 }
 
-$downloadsDir = __DIR__ . '/downloads';
-if (!is_dir($downloadsDir) && !mkdir($downloadsDir, 0755, true) && !is_dir($downloadsDir)) {
-	fail(500, 'downloads/ klasörü oluşturulamadı.');
-}
+$downloadsDir = downloadsDirPath();
 
 $filename = 'knight-lite-' . $version . '.apk';
 $destPath = $downloadsDir . '/' . $filename;

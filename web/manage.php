@@ -34,7 +34,7 @@ if (!is_string($token) || $token === '' || !hash_equals($expectedToken, $token))
 	fail(401, 'Geçersiz token.');
 }
 
-$downloadsDir = realpath(__DIR__ . '/downloads');
+$downloadsDir = realpath(downloadsDirPath());
 if ($downloadsDir === false) {
 	fail(500, 'downloads/ klasörü bulunamadı.');
 }

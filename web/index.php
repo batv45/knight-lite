@@ -8,8 +8,8 @@ require __DIR__ . '/bootstrap.php';
 $data = readReleases();
 
 $downloadUrl = null;
-if (!empty($data['apk_filename']) && is_file(__DIR__ . '/downloads/' . $data['apk_filename'])) {
-	$downloadUrl = 'downloads/' . rawurlencode((string) $data['apk_filename']);
+if (!empty($data['apk_filename']) && is_file(downloadsDirPath() . '/' . $data['apk_filename'])) {
+	$downloadUrl = 'download.php?file=' . rawurlencode((string) $data['apk_filename']);
 }
 
 function h(string $s): string

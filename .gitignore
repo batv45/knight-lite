@@ -1,0 +1,3 @@
+# web/'in kalıcı depolama alanı (bkz. web/bootstrap.php resolveStorageDir()).
+# Yerel testte web/'in bir üstü (bu klasörün kökü) burada oluşur.
+/storage/

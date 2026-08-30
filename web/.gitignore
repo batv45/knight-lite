@@ -1,4 +1,1 @@
 config.php
-releases.json
-downloads/*
-!downloads/.gitkeep
