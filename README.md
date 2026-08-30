@@ -41,17 +41,18 @@ komutu `web/`'i `../knight-lite-web` klonuna senkronize edip push eder (ilk sefe
 
 ### Versiyon numaralandırma kuralı
 
-Her yeni yayınlanan build'de `x.x.` sabit kalır, son basamak (patch) **1'den başlar**
-ve her yayında **tam olarak 1 artar** (ör. 0.3.0 → 0.3.1 → 0.3.2). Numara asla atlanmaz.
-Güncel sürüm `web/releases.json` → `version` alanından ya da canlı sitedeki
-`https://knight.batv.dev/releases.json`'dan görülebilir.
+Semantic versioning + beta suffix: `MAJOR.MINOR.0-betaN`. Aynı minor içinde her yeni
+build'de sadece beta sayacı artar (`0.1.0-beta1` → `0.1.0-beta2` → ...). Gerçek bir
+milestone'a ulaşılınca MINOR artırılır ve beta sayacı 1'e sıfırlanır (`0.2.0-beta1`).
+Şu an geçerli aralık: `0.1.0-betaN`. Güncel sürüm `web/releases.json` → `version`
+alanından ya da canlı sitedeki `https://knight.batv.dev/releases.json`'dan görülebilir.
 
 ### Yeni build yayınlama komutu
 
 ```bash
 TOKEN=$(cat ~/.secrets/knight_lite_upload_token.txt)
 curl -F "apk=@app/build/knight-lite.apk" \
-     -F "version=<bir önceki + 1>" \
+     -F "version=0.1.0-betaN" \
      -F "note=<kısa açıklama>" \
      -H "X-Upload-Token: $TOKEN" \
      https://knight.batv.dev/upload.php
