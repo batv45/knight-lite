@@ -37,10 +37,13 @@ func _ready() -> void:
 	_hud.world_size = WORLD_SIZE
 	add_child(_hud)
 	_player.health_changed.connect(_hud.set_player_hp)
+	_player.mp_changed.connect(_hud.set_player_mp)
 	_player.xp_changed.connect(_hud.set_xp)
 	_player.gold_changed.connect(_hud.set_gold)
 	_player.leveled_up.connect(_hud.announce_level_up)
+	_player.target_changed.connect(_hud.set_target)
 	_hud.set_player_hp(_player.hp, _player.max_hp)
+	_hud.set_player_mp(_player.mp, _player.max_mp)
 	_hud.set_xp(_player.xp, _player.xp_to_next, _player.level)
 	_hud.set_gold(_player.gold)
 

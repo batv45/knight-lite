@@ -1,7 +1,9 @@
 extends Control
-## Sağ üstteki "Harita" butonuna basınca açılan basit dünya haritası.
-## Canlı değildir: açıldığı andaki oyuncu/canavar konumlarının bir "fotoğrafı"
-## gibidir (spec gereği güncellenmesi gerekmiyor). Herhangi bir yere dokununca kapanır.
+## Sağ üstteki "Harita" butonuna basınca açılan CANLI dünya haritası: her karede
+## yeniden çizilip oyuncu/canavar konumlarını güncel tutar. Açıkken arka plandaki
+## dokunmatik joystick/saldırı butonunun yanlışlıkla tetiklenmesini önlemek için
+## TouchControls devre dışı bırakılır, kapanınca tekrar etkinleştirilir.
+## Herhangi bir yere dokununca kapanır.
 
 var world_size := Vector2(2400, 1350)
 
@@ -36,7 +38,16 @@ func _ready() -> void:
 	add_child(hint)
 
 	gui_input.connect(_on_gui_input)
-	queue_redraw()
+	_set_touch_controls_enabled(false)
+	tree_exiting.connect(func(): _set_touch_controls_enabled(true))
+
+func _set_touch_controls_enabled(value: bool) -> void:
+	var tc := get_tree().get_first_node_in_group("touch_controls")
+	if tc:
+		tc.set_enabled(value)
+
+func _process(_delta: float) -> void:
+	queue_redraw() # canlı harita: her karede güncel konumlarla yeniden çiz
 
 func _on_gui_input(event: InputEvent) -> void:
 	if (event is InputEventScreenTouch and event.pressed) or (event is InputEventMouseButton and event.pressed):

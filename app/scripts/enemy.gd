@@ -1,10 +1,15 @@
 extends CharacterBody2D
-## Faz 4: veri odaklı çoklu canavar tipi. `type_id` (world.gd tarafından add_child'dan
-## ÖNCE set edilir) hangi sprite/stat setinin kullanılacağını belirler.
-## State machine: Idle -> oyuncuyu görünce Chase -> menzile girince Attack ->
-## HP 0 olunca Dead. Görsel: 0x72'nin "DungeonTilesetII" paketinden.
+## Faz 4: veri odaklı çoklu canavar tipi + hedef kilitleme. `type_id` (world.gd
+## tarafından add_child'dan ÖNCE set edilir) hangi sprite/stat setinin
+## kullanılacağını belirler.
+##
+## Canavarlar artık OTOMATİK saldırmaz: sadece oyuncu tarafından hedeflenince
+## (bkz. player.gd _set_target) Chase/Attack state'ine geçer, hedef değişince/
+## kaybolunca tekrar Idle'a döner. Hedeflenen canavarın etrafında sarı bir
+## halka gösterilir.
 
 signal died(xp_reward: int)
+signal health_changed(current: int, max_hp: int)
 
 enum State { IDLE, CHASE, ATTACK, DEAD }
 
@@ -14,19 +19,19 @@ enum State { IDLE, CHASE, ATTACK, DEAD }
 const ENEMY_TYPES := {
 	"goblin": {
 		"body_size": Vector2(16, 16), "max_hp": 40, "speed": 90.0,
-		"detect_range": 220.0, "attack_range": 34.0, "attack_damage": 10, "xp_reward": 15,
+		"attack_range": 34.0, "attack_damage": 10, "xp_reward": 15,
 	},
 	"skelet": {
 		"body_size": Vector2(16, 16), "max_hp": 65, "speed": 85.0,
-		"detect_range": 240.0, "attack_range": 34.0, "attack_damage": 15, "xp_reward": 30,
+		"attack_range": 34.0, "attack_damage": 15, "xp_reward": 30,
 	},
 	"orc_warrior": {
 		"body_size": Vector2(16, 23), "max_hp": 100, "speed": 75.0,
-		"detect_range": 260.0, "attack_range": 38.0, "attack_damage": 20, "xp_reward": 50,
+		"attack_range": 38.0, "attack_damage": 20, "xp_reward": 50,
 	},
 	"big_demon": {
 		"body_size": Vector2(32, 36), "max_hp": 220, "speed": 65.0,
-		"detect_range": 280.0, "attack_range": 46.0, "attack_damage": 35, "xp_reward": 150,
+		"attack_range": 46.0, "attack_damage": 35, "xp_reward": 150,
 	},
 }
 const DEFAULT_TYPE := "goblin"
@@ -35,10 +40,10 @@ const DEFAULT_TYPE := "goblin"
 var type_id := DEFAULT_TYPE
 
 var state: int = State.IDLE
+var is_targeted := false
 var hp: int
 var max_hp: int
 var speed: float
-var detect_range: float
 var attack_range: float
 var attack_damage: int
 var xp_reward: int
@@ -49,6 +54,7 @@ var _player: Node2D
 var _visual: AnimatedSprite2D
 var _collision_shape: CollisionShape2D
 var _health_bar: HealthBar
+var _target_ring: Node2D
 
 func _ready() -> void:
 	add_to_group("enemies")
@@ -58,7 +64,6 @@ func _ready() -> void:
 	max_hp = cfg["max_hp"]
 	hp = max_hp
 	speed = cfg["speed"]
-	detect_range = cfg["detect_range"]
 	attack_range = cfg["attack_range"]
 	attack_damage = cfg["attack_damage"]
 	xp_reward = cfg["xp_reward"]
@@ -79,6 +84,14 @@ func _ready() -> void:
 	_health_bar.position = Vector2(0, -body_size.y / 2.0 - 10.0)
 	add_child(_health_bar)
 	_health_bar.update_ratio(1.0)
+
+	_target_ring = Node2D.new()
+	_target_ring.visible = false
+	add_child(_target_ring)
+	_target_ring.draw.connect(func():
+		var radius: float = max(body_size.x, body_size.y) / 2.0 + 5.0
+		_target_ring.draw_arc(Vector2.ZERO, radius, 0, TAU, 28, Color(1, 0.9, 0.2, 0.95), 2.5)
+	)
 
 	_player = get_tree().get_first_node_in_group("player")
 
@@ -101,8 +114,23 @@ func _build_sprite_frames() -> SpriteFrames:
 
 	return frames
 
+func is_alive() -> bool:
+	return state != State.DEAD
+
+## Player tarafından vurulunca (bkz. player.gd _set_target) çağrılır. Hedeflenmeyen
+## canavarlar tamamen pasif kalır (hareket etmez, saldırmaz).
+func set_targeted(value: bool) -> void:
+	is_targeted = value
+	_target_ring.visible = value
+	if value:
+		_target_ring.queue_redraw()
+	else:
+		state = State.IDLE
+		velocity = Vector2.ZERO
+		_attack_ready = true
+
 func _physics_process(_delta: float) -> void:
-	if state == State.DEAD or _player == null or not is_instance_valid(_player) or _player.is_dead:
+	if state == State.DEAD or not is_targeted or _player == null or not is_instance_valid(_player) or _player.is_dead:
 		velocity = Vector2.ZERO
 		_update_animation()
 		return
@@ -115,12 +143,9 @@ func _physics_process(_delta: float) -> void:
 		velocity = Vector2.ZERO
 		if _attack_ready:
 			_attack()
-	elif dist <= detect_range:
+	else:
 		state = State.CHASE
 		velocity = to_player.normalized() * speed
-	else:
-		state = State.IDLE
-		velocity = Vector2.ZERO
 
 	move_and_slide()
 	_update_animation()
@@ -140,6 +165,7 @@ func take_damage(amount: int) -> void:
 	if state == State.DEAD:
 		return
 	hp = max(hp - amount, 0)
+	health_changed.emit(hp, max_hp)
 	_health_bar.update_ratio(float(hp) / float(max_hp))
 	_flash_hit()
 	if hp <= 0:

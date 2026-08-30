@@ -1,19 +1,28 @@
 extends CharacterBody2D
-## Faz 3 + asset entegrasyonu: hareket + savaş + leveling.
+## Faz 3 + asset entegrasyonu + hedef kilitleme: hareket + savaş + leveling.
 ## Görsel: 0x72'nin "DungeonTilesetII" paketinden şövalye (knight_m) sprite'ları.
+##
+## Saldırınca vurduğun canavar "hedef" olur (current_target): o canavar artık
+## sana saldırmaya başlar (bkz. enemy.gd set_targeted), etrafında halka belirir,
+## HUD'da üstte HP'si görünür. Başka bir canavara vurunca hedef değişir.
 
 signal died
 signal health_changed(current: int, max_hp: int)
+signal mp_changed(current: int, max_mp: int)
 signal xp_changed(current: int, needed: int, level: int)
 signal leveled_up(new_level: int)
 signal gold_changed(amount: int)
+signal target_changed(enemy: Node)
 
 const SPEED := 180.0
 const BODY_SIZE := 16.0
 const BASE_MAX_HP := 100
+const BASE_MAX_MP := 50
 const BASE_ATTACK_DAMAGE := 20
 const HP_PER_LEVEL := 20
+const MP_PER_LEVEL := 10
 const ATTACK_PER_LEVEL := 5
+const MP_REGEN_PER_SEC := 5.0
 const ATTACK_RANGE := 46.0
 const ATTACK_COOLDOWN := 0.4
 const RESPAWN_DELAY := 1.5
@@ -22,17 +31,21 @@ const SPRITE_DIR := "res://assets/characters/knight/"
 
 var hp := BASE_MAX_HP
 var max_hp := BASE_MAX_HP
+var mp := BASE_MAX_MP
+var max_mp := BASE_MAX_MP
 var attack_damage := BASE_ATTACK_DAMAGE
 var level := 1
 var xp := 0
 var xp_to_next := _xp_for_level(1)
 var gold := 0
+var current_target: Node = null
 
 var facing := Vector2.DOWN
 var can_attack := true
 var is_dead := false
 var spawn_point := Vector2.ZERO
 
+var _mp_regen_accum := 0.0
 var _visual: AnimatedSprite2D
 var _collision_shape: CollisionShape2D
 var _health_bar: HealthBar
@@ -76,10 +89,12 @@ func _build_sprite_frames() -> SpriteFrames:
 
 	return frames
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if is_dead:
 		velocity = Vector2.ZERO
 		return
+
+	_regen_mp(delta)
 
 	var dir := InputBridge.get_move_vector()
 	if dir.length() > 0.1:
@@ -92,6 +107,16 @@ func _physics_process(_delta: float) -> void:
 	if InputBridge.consume_attack_request():
 		_attack()
 
+func _regen_mp(delta: float) -> void:
+	if mp >= max_mp:
+		return
+	_mp_regen_accum += MP_REGEN_PER_SEC * delta
+	if _mp_regen_accum >= 1.0:
+		var whole := int(_mp_regen_accum)
+		_mp_regen_accum -= whole
+		mp = min(mp + whole, max_mp)
+		mp_changed.emit(mp, max_mp)
+
 func _update_animation(dir: Vector2) -> void:
 	_visual.animation = "run" if dir.length() > 0.1 else "idle"
 	if abs(dir.x) > 0.1:
@@ -102,14 +127,44 @@ func _attack() -> void:
 		return
 	can_attack = false
 	_play_attack_flash()
+
+	var hit_target: Node = null
 	for enemy in get_tree().get_nodes_in_group("enemies"):
-		if not is_instance_valid(enemy):
+		if not is_instance_valid(enemy) or not enemy.is_alive():
 			continue
 		var to_enemy: Vector2 = enemy.global_position - global_position
 		if to_enemy.length() <= ATTACK_RANGE and to_enemy.normalized().dot(facing) > 0.3:
 			enemy.take_damage(attack_damage)
+			# Bu vuruşla öldüyse hedef olarak işaretleme (ölüm sinyali zaten
+			# current_target'ı temizledi, üstüne yazıp geri getirmeyelim).
+			if hit_target == null and is_instance_valid(enemy) and enemy.is_alive():
+				hit_target = enemy
+	if hit_target != null:
+		_set_target(hit_target)
+
 	await get_tree().create_timer(ATTACK_COOLDOWN).timeout
 	can_attack = true
+
+## Hedefi değiştirir: eski hedefin "targeted" durumunu kapatır (artık saldırmaz,
+## halkası kaybolur), yeniyi açar. Hedef ölünce de bu, null ile çağrılır.
+func _set_target(enemy: Node) -> void:
+	if current_target == enemy:
+		return
+	if is_instance_valid(current_target):
+		current_target.set_targeted(false)
+		if current_target.died.is_connected(_on_target_died):
+			current_target.died.disconnect(_on_target_died)
+
+	current_target = enemy
+	if is_instance_valid(current_target):
+		current_target.set_targeted(true)
+		current_target.died.connect(_on_target_died, CONNECT_ONE_SHOT)
+
+	target_changed.emit(current_target)
+
+func _on_target_died(_xp_reward: int) -> void:
+	current_target = null
+	target_changed.emit(null)
 
 func _play_attack_flash() -> void:
 	# Yöne doğru kısa bir "hamle" (lunge) + sıkışma-esneme (squash & stretch) efekti.
@@ -141,6 +196,7 @@ func _die() -> void:
 	is_dead = true
 	visible = false
 	_collision_shape.disabled = true
+	_set_target(null)
 	died.emit()
 	await get_tree().create_timer(RESPAWN_DELAY).timeout
 	_respawn()
@@ -171,10 +227,13 @@ func gain_xp(amount: int) -> void:
 func _level_up() -> void:
 	level += 1
 	max_hp += HP_PER_LEVEL
+	max_mp += MP_PER_LEVEL
 	attack_damage += ATTACK_PER_LEVEL
 	hp = max_hp
+	mp = max_mp
 	xp_to_next = _xp_for_level(level)
 	health_changed.emit(hp, max_hp)
+	mp_changed.emit(mp, max_mp)
 	_health_bar.update_ratio(1.0)
 	leveled_up.emit(level)
 	_play_level_up_flash()

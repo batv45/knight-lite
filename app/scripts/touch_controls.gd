@@ -26,7 +26,12 @@ var _attack_touch_index := -1
 var _attack_center := Vector2.ZERO
 var _attack_visual: TextureRect
 
+## Harita gibi bir overlay açıkken devre dışı bırakılır (bkz. map_overlay.gd),
+## yoksa ham _input() harita açıkken de joystick/saldırıyı tetiklemeye devam eder.
+var _enabled := true
+
 func _ready() -> void:
+	add_to_group("touch_controls")
 	var viewport_size := get_viewport().get_visible_rect().size
 
 	_base_center = Vector2(MARGIN + BASE_SIZE / 2.0, viewport_size.y - MARGIN - BASE_SIZE / 2.0)
@@ -69,7 +74,15 @@ func _update_visuals() -> void:
 	_knob_visual.position = _knob_center - _knob_visual.size / 2.0
 	_attack_visual.position = _attack_center - _attack_visual.size / 2.0
 
+func set_enabled(value: bool) -> void:
+	_enabled = value
+	if not value:
+		_release_joystick()
+		_attack_touch_index = -1
+
 func _input(event: InputEvent) -> void:
+	if not _enabled:
+		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			if _touch_index == -1 and event.position.distance_to(_base_center) <= BASE_SIZE:
