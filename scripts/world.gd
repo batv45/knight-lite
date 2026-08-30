@@ -1,7 +1,7 @@
 extends Node2D
-## Faz 2 test dünyası: zemin + oyuncu + kamera + touch kontrol + HUD + canavarlar.
-## Canavar öldüğünde bir süre sonra dünyada rastgele bir yerde yenisi doğar,
-## böylece "öldür-tekrar öldür" döngüsü (Faz 3'te XP/level ile beslenecek) test edilebiliyor.
+## Faz 3 test dünyası: zemin + oyuncu + kamera + touch kontrol + HUD + canavarlar + loot.
+## Canavar öldüğünde: oyuncuya XP verilir, dünyaya bir altın drop'u düşer, birkaç
+## saniye sonra rastgele bir yerde yeni canavar doğar (öldür-kas-tekrar döngüsü).
 
 const WORLD_SIZE := Vector2(2400, 1350)
 const ENEMY_COUNT := 3
@@ -9,22 +9,28 @@ const ENEMY_RESPAWN_DELAY := 4.0
 const ENEMY_SPAWN_MARGIN := 200.0
 
 var _hud: CanvasLayer
+var _player: CharacterBody2D
 
 func _ready() -> void:
 	_build_ground()
-	var player := _spawn_player()
-	_attach_camera(player)
+	_player = _spawn_player()
+	_attach_camera(_player)
 	_add_touch_controls()
 
 	_hud = load("res://scenes/HUD.tscn").instantiate()
 	add_child(_hud)
-	player.health_changed.connect(_hud.set_player_hp)
-	_hud.set_player_hp(player.hp, player.MAX_HP)
+	_player.health_changed.connect(_hud.set_player_hp)
+	_player.xp_changed.connect(_hud.set_xp)
+	_player.gold_changed.connect(_hud.set_gold)
+	_player.leveled_up.connect(_hud.announce_level_up)
+	_hud.set_player_hp(_player.hp, _player.max_hp)
+	_hud.set_xp(_player.xp, _player.xp_to_next, _player.level)
+	_hud.set_gold(_player.gold)
 
 	for i in ENEMY_COUNT:
 		_spawn_enemy_at(_random_enemy_position())
 
-	_maybe_take_dev_screenshot(player)
+	_maybe_take_dev_screenshot()
 
 func _build_ground() -> void:
 	var ground := ColorRect.new()
@@ -66,22 +72,30 @@ func _spawn_enemy_at(pos: Vector2) -> CharacterBody2D:
 	add_child(enemy)
 	enemy.died.connect(func(xp_reward: int) -> void:
 		_hud.add_kill(xp_reward)
+		if is_instance_valid(_player):
+			_player.gain_xp(xp_reward)
+		_spawn_pickup(enemy.global_position)
 		await get_tree().create_timer(ENEMY_RESPAWN_DELAY).timeout
 		_spawn_enemy_at(_random_enemy_position())
 	)
 	return enemy
 
+func _spawn_pickup(pos: Vector2) -> void:
+	var pickup: Area2D = load("res://scenes/Pickup.tscn").instantiate()
+	pickup.position = pos
+	add_child(pickup)
+
 ## Ekranı olmayan (headless/server) ortamda görsel doğrulama için: proje
 ## `-- --screenshot` argümanıyla çalıştırılırsa oyuncunun hemen yanına garanti
-## menzilde bir test canavarı koyup öldürür (hasar/HP/ölüm/respawn zincirini
-## uçtan uca doğrulamak için), sonra res://screenshot.png'ye kaydedip çıkar.
-## Oyun mantığının bir parçası değil, sadece geliştirici aracı.
-func _maybe_take_dev_screenshot(player: CharacterBody2D) -> void:
+## menzilde bir test canavarı koyup öldürür, üzerine düşen altını toplar, sonra
+## res://screenshot.png'ye kaydedip çıkar. Oyun mantığının bir parçası değil,
+## sadece geliştirici aracı.
+func _maybe_take_dev_screenshot() -> void:
 	if "--screenshot" not in OS.get_cmdline_user_args():
 		return
 	await get_tree().create_timer(0.2).timeout
 
-	var dummy := _spawn_enemy_at(player.global_position + Vector2(40, 0))
+	var dummy := _spawn_enemy_at(_player.global_position + Vector2(40, 0))
 
 	InputBridge.set_move_vector(Vector2.RIGHT)
 	await get_tree().create_timer(0.15).timeout
@@ -92,6 +106,14 @@ func _maybe_take_dev_screenshot(player: CharacterBody2D) -> void:
 		await get_tree().create_timer(0.5).timeout
 
 	print("Test canavarı hâlâ hayatta mı: ", is_instance_valid(dummy))
+
+	# Ölünce düşen altını toplamak için üzerine doğru birazcık daha yürü.
+	InputBridge.set_move_vector(Vector2.RIGHT)
+	await get_tree().create_timer(0.4).timeout
+	InputBridge.set_move_vector(Vector2.ZERO)
+	await get_tree().create_timer(0.3).timeout
+
+	print("Oyuncu XP/level/altın: ", _player.xp, "/", _player.xp_to_next, " lvl=", _player.level, " gold=", _player.gold)
 
 	var img := get_viewport().get_texture().get_image()
 	img.save_png("res://screenshot.png")

@@ -3,7 +3,7 @@
 Basit, tek oyunculu, 2D üstten görünüm açık dünya aksiyon-RPG (Knight Online'dan
 esinlenilmiş "canavar öldür, level kas" döngüsü). Godot 4 + GDScript.
 
-## Şu anki durum: Faz 2 — Savaş sistemi
+## Şu anki durum: Faz 3 — Leveling + loot
 
 Bu fazda oynanabilir olan:
 - Karakter (mavi kare, placeholder) WASD / ok tuşlarıyla ya da sol alttaki sanal
@@ -12,12 +12,16 @@ Bu fazda oynanabilir olan:
   yönde menzildeki canavarlara hasar verir
 - Canavarlar (kırmızı kare, placeholder): Idle → oyuncuyu görünce Chase →
   menzile girince Attack state machine'i ile davranır, geri hasar verir
-- Her iki tarafta da HP çubuğu, HUD'da can ve öldürülen canavar sayacı
-- Canavar ölünce birkaç saniye sonra dünyada rastgele bir yerde yenisi doğar
-  (sürekli "öldür-tekrar öldür" döngüsü)
+- Her iki tarafta da HP çubuğu, HUD'da can, seviye/XP, altın ve öldürülen
+  canavar sayacı
+- Canavar öldürülünce: oyuncuya XP verilir, yere altın drop'u (sarı kare)
+  düşer — üzerinden geçilince toplanır; birkaç saniye sonra dünyada rastgele
+  bir yerde yeni canavar doğar (sürekli "öldür-kas-tekrar" döngüsü)
+- Yeterli XP toplanınca seviye atlanır: max can ve saldırı gücü artar, can
+  tamamen dolar, ekranda "Seviye N!" bildirimi belirir
 - Oyuncu ölünce kısa bir süre sonra başlangıç noktasında tam canla yeniden doğar
 
-Henüz yok: level/XP, loot, gerçek asset'ler, birden fazla bölge — bunlar sonraki fazlarda.
+Henüz yok: gerçek asset'ler, birden fazla bölge/zorluk eğrisi, ekipman/envanter — bunlar sonraki fazlarda.
 
 ## Sunucu tarafında hazır altyapı
 
@@ -78,6 +82,6 @@ görsel editörde gezinmek istersen:
 
 - [x] Faz 1 — İskelet, hareket, kamera, touch kontrol
 - [x] Faz 2 — Savaş çekirdeği (saldırı, HP, ölüm/respawn, 1 canavar tipi)
-- [ ] Faz 3 — Leveling + loot (XP, level atlama, stat artışı, item drop)
+- [x] Faz 3 — Leveling + loot (XP, level atlama, stat artışı, altın drop)
 - [ ] Faz 4 — Dünya içeriği (birden fazla bölge/canavar tipi, zorluk eğrisi)
 - [ ] Faz 5 — Polish + Android export (HUD, ses, save/load, gerçek cihaz testi)

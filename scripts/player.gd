@@ -1,19 +1,31 @@
 extends CharacterBody2D
-## Faz 2: hareket + savaş. Görsel şimdilik düz renkli kare (placeholder) —
+## Faz 3: hareket + savaş + leveling. Görsel şimdilik düz renkli kare (placeholder) —
 ## asset paketi seçilince bu kısım gerçek sprite/AnimatedSprite2D ile değişecek.
 
 signal died
 signal health_changed(current: int, max_hp: int)
+signal xp_changed(current: int, needed: int, level: int)
+signal leveled_up(new_level: int)
+signal gold_changed(amount: int)
 
 const SPEED := 180.0
 const BODY_SIZE := 32.0
-const MAX_HP := 100
-const ATTACK_DAMAGE := 20
+const BASE_MAX_HP := 100
+const BASE_ATTACK_DAMAGE := 20
+const HP_PER_LEVEL := 20
+const ATTACK_PER_LEVEL := 5
 const ATTACK_RANGE := 46.0
 const ATTACK_COOLDOWN := 0.4
 const RESPAWN_DELAY := 1.5
 
-var hp := MAX_HP
+var hp := BASE_MAX_HP
+var max_hp := BASE_MAX_HP
+var attack_damage := BASE_ATTACK_DAMAGE
+var level := 1
+var xp := 0
+var xp_to_next := _xp_for_level(1)
+var gold := 0
+
 var facing := Vector2.DOWN
 var can_attack := true
 var is_dead := false
@@ -70,7 +82,7 @@ func _attack() -> void:
 			continue
 		var to_enemy: Vector2 = enemy.global_position - global_position
 		if to_enemy.length() <= ATTACK_RANGE and to_enemy.normalized().dot(facing) > 0.3:
-			enemy.take_damage(ATTACK_DAMAGE)
+			enemy.take_damage(attack_damage)
 	await get_tree().create_timer(ATTACK_COOLDOWN).timeout
 	can_attack = true
 
@@ -83,8 +95,8 @@ func take_damage(amount: int) -> void:
 	if is_dead:
 		return
 	hp = max(hp - amount, 0)
-	health_changed.emit(hp, MAX_HP)
-	_health_bar.update_ratio(float(hp) / float(MAX_HP))
+	health_changed.emit(hp, max_hp)
+	_health_bar.update_ratio(float(hp) / float(max_hp))
 	_flash_hit()
 	if hp <= 0:
 		_die()
@@ -103,10 +115,44 @@ func _die() -> void:
 	_respawn()
 
 func _respawn() -> void:
-	hp = MAX_HP
-	health_changed.emit(hp, MAX_HP)
+	hp = max_hp
+	health_changed.emit(hp, max_hp)
 	_health_bar.update_ratio(1.0)
 	global_position = spawn_point
 	is_dead = false
 	visible = true
 	_collision_shape.disabled = false
+
+## --- Leveling & loot -------------------------------------------------------
+
+func _xp_for_level(lvl: int) -> int:
+	return 30 + lvl * 20 # basit doğrusal eğri, ileride dengelenebilir
+
+func gain_xp(amount: int) -> void:
+	if is_dead:
+		return
+	xp += amount
+	while xp >= xp_to_next:
+		xp -= xp_to_next
+		_level_up()
+	xp_changed.emit(xp, xp_to_next, level)
+
+func _level_up() -> void:
+	level += 1
+	max_hp += HP_PER_LEVEL
+	attack_damage += ATTACK_PER_LEVEL
+	hp = max_hp
+	xp_to_next = _xp_for_level(level)
+	health_changed.emit(hp, max_hp)
+	_health_bar.update_ratio(1.0)
+	leveled_up.emit(level)
+	_play_level_up_flash()
+
+func _play_level_up_flash() -> void:
+	var tw := create_tween()
+	tw.tween_property(_visual, "modulate", Color(1, 0.95, 0.4), 0.15)
+	tw.tween_property(_visual, "modulate", Color.WHITE, 0.35)
+
+func gain_gold(amount: int) -> void:
+	gold += amount
+	gold_changed.emit(gold)
