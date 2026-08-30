@@ -20,18 +20,22 @@ const ENEMY_TYPES := {
 	"goblin": {
 		"body_size": Vector2(16, 16), "max_hp": 40, "speed": 90.0,
 		"attack_range": 34.0, "attack_damage": 10, "xp_reward": 15,
+		"display_name": "Goblin", "level": 1,
 	},
 	"skelet": {
 		"body_size": Vector2(16, 16), "max_hp": 65, "speed": 85.0,
 		"attack_range": 34.0, "attack_damage": 15, "xp_reward": 30,
+		"display_name": "İskelet", "level": 2,
 	},
 	"orc_warrior": {
 		"body_size": Vector2(16, 23), "max_hp": 100, "speed": 75.0,
 		"attack_range": 38.0, "attack_damage": 20, "xp_reward": 50,
+		"display_name": "Ork Savaşçı", "level": 3,
 	},
 	"big_demon": {
 		"body_size": Vector2(32, 36), "max_hp": 220, "speed": 65.0,
 		"attack_range": 46.0, "attack_damage": 35, "xp_reward": 150,
+		"display_name": "Dev İblis", "level": 5,
 	},
 }
 const DEFAULT_TYPE := "goblin"
@@ -55,6 +59,7 @@ var _visual: AnimatedSprite2D
 var _collision_shape: CollisionShape2D
 var _health_bar: HealthBar
 var _target_ring: Node2D
+var _name_label: Label
 
 func _ready() -> void:
 	add_to_group("enemies")
@@ -84,6 +89,19 @@ func _ready() -> void:
 	_health_bar.position = Vector2(0, -body_size.y / 2.0 - 10.0)
 	add_child(_health_bar)
 	_health_bar.update_ratio(1.0)
+
+	_name_label = Label.new()
+	_name_label.text = "%s Lv.%d" % [get_display_name(), get_level()]
+	_name_label.add_theme_font_size_override("font_size", 10)
+	_name_label.add_theme_color_override("font_color", Color(1, 1, 1))
+	_name_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
+	_name_label.add_theme_constant_override("shadow_offset_x", 1)
+	_name_label.add_theme_constant_override("shadow_offset_y", 1)
+	_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_name_label.size = Vector2(100, 14)
+	_name_label.position = Vector2(-50, -body_size.y / 2.0 - 24.0)
+	_name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_name_label)
 
 	_target_ring = Node2D.new()
 	_target_ring.visible = false
@@ -116,6 +134,14 @@ func _build_sprite_frames() -> SpriteFrames:
 
 func is_alive() -> bool:
 	return state != State.DEAD
+
+func get_display_name() -> String:
+	var cfg: Dictionary = ENEMY_TYPES.get(type_id, {})
+	return cfg.get("display_name", type_id.capitalize())
+
+func get_level() -> int:
+	var cfg: Dictionary = ENEMY_TYPES.get(type_id, {})
+	return cfg.get("level", 1)
 
 ## Player tarafından vurulunca (bkz. player.gd _set_target) çağrılır. Hedeflenmeyen
 ## canavarlar tamamen pasif kalır (hareket etmez, saldırmaz).

@@ -1,9 +1,10 @@
 extends Control
-## Sağ üstteki "Harita" butonuna basınca açılan CANLI dünya haritası: her karede
-## yeniden çizilip oyuncu/canavar konumlarını güncel tutar. Açıkken arka plandaki
-## dokunmatik joystick/saldırı butonunun yanlışlıkla tetiklenmesini önlemek için
-## TouchControls devre dışı bırakılır, kapanınca tekrar etkinleştirilir.
-## Herhangi bir yere dokununca kapanır.
+## Minimap'e (sağ üst) dokununca açılan büyük, CANLI dünya haritası: her karede
+## yeniden çizilip oyuncu/canavar konumlarını ve isimlerini günceller. Açıkken
+## arka plandaki dokunmatik joystick/saldırı butonunun yanlışlıkla tetiklenmesini
+## önlemek için TouchControls devre dışı bırakılır, kapanınca tekrar etkinleştirilir.
+## Herhangi bir yere dokununca kapanır (minimap.gd ile AYNI ham _input() yöntemi
+## kullanılır — Godot'un gui_input akışı yerine, tutarlılık/güvenilirlik için).
 
 var world_size := Vector2(2400, 1350)
 
@@ -18,7 +19,7 @@ func _ready() -> void:
 	var viewport_size := get_viewport_rect().size
 	position = Vector2.ZERO
 	size = viewport_size
-	mouse_filter = Control.MOUSE_FILTER_STOP
+	mouse_filter = Control.MOUSE_FILTER_IGNORE # kendi _input()'umuzu kullanıyoruz
 	z_index = 100 # diğer tüm HUD/touch-control katmanlarının üstünde görünsün
 
 	var bg := ColorRect.new()
@@ -37,7 +38,6 @@ func _ready() -> void:
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hint)
 
-	gui_input.connect(_on_gui_input)
 	_set_touch_controls_enabled(false)
 	tree_exiting.connect(func(): _set_touch_controls_enabled(true))
 
@@ -49,7 +49,7 @@ func _set_touch_controls_enabled(value: bool) -> void:
 func _process(_delta: float) -> void:
 	queue_redraw() # canlı harita: her karede güncel konumlarla yeniden çiz
 
-func _on_gui_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	if (event is InputEventScreenTouch and event.pressed) or (event is InputEventMouseButton and event.pressed):
 		queue_free()
 
@@ -59,6 +59,7 @@ func _draw() -> void:
 	var scale_factor: float = min(available.x / world_size.x, available.y / world_size.y)
 	var map_size := world_size * scale_factor
 	var origin := (viewport_size - map_size) / 2.0
+	var font := ThemeDB.fallback_font
 
 	draw_rect(Rect2(origin, map_size), Color(0.22, 0.42, 0.22, 1.0))
 	draw_rect(Rect2(origin, map_size), Color(1, 1, 1, 0.9), false, 3.0)
@@ -69,12 +70,15 @@ func _draw() -> void:
 		var p: Vector2 = origin + enemy.global_position * scale_factor
 		var type_id: String = enemy.type_id if "type_id" in enemy else "goblin"
 		draw_circle(p, ENEMY_DOT_RADIUS, _color_for_type(type_id))
+		var label: String = enemy.get_display_name() if enemy.has_method("get_display_name") else type_id
+		draw_string(font, p + Vector2(7, 4), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.95))
 
 	var player := get_tree().get_first_node_in_group("player")
 	if player and is_instance_valid(player):
 		var pp: Vector2 = origin + player.global_position * scale_factor
 		draw_circle(pp, PLAYER_DOT_RADIUS, Color(0.3, 0.6, 1.0))
 		draw_arc(pp, PLAYER_DOT_RADIUS, 0, TAU, 16, Color.WHITE, 2.0)
+		draw_string(font, pp + Vector2(9, 4), "Sen", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.6, 0.8, 1.0))
 
 func _color_for_type(type_id: String) -> Color:
 	match type_id:

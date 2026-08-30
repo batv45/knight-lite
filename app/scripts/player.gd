@@ -126,6 +126,15 @@ func _attack() -> void:
 	if not can_attack or is_dead:
 		return
 	can_attack = false
+
+	# Menzildeki en yakın canavara doğru otomatik dön (arkası dönükken saldırınca
+	# da vurabilsin diye) — manuel yön tutmaya gerek kalmaz.
+	var nearest := _find_nearest_enemy_in_range()
+	if nearest != null:
+		facing = (nearest.global_position - global_position).normalized()
+		if abs(facing.x) > 0.1:
+			_visual.flip_h = facing.x < 0.0
+
 	_play_attack_flash()
 
 	var hit_target: Node = null
@@ -144,6 +153,19 @@ func _attack() -> void:
 
 	await get_tree().create_timer(ATTACK_COOLDOWN).timeout
 	can_attack = true
+
+## Saldırı menzilindeki (yön farketmeksizin) en yakın canlı canavarı bulur.
+func _find_nearest_enemy_in_range() -> Node:
+	var nearest: Node = null
+	var nearest_dist := ATTACK_RANGE
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(enemy) or not enemy.is_alive():
+			continue
+		var dist: float = global_position.distance_to(enemy.global_position)
+		if dist <= nearest_dist:
+			nearest = enemy
+			nearest_dist = dist
+	return nearest
 
 ## Hedefi değiştirir: eski hedefin "targeted" durumunu kapatır (artık saldırmaz,
 ## halkası kaybolur), yeniyi açar. Hedef ölünce de bu, null ile çağrılır.

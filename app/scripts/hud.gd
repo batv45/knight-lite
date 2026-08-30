@@ -1,6 +1,7 @@
 extends CanvasLayer
 ## Faz 4 HUD: sol üstte seviye + HP/MP/XP çubukları + altın + öldürülen canavar
-## sayacı, üst ortada hedeflenen canavarın HP çubuğu, sağ üstte harita butonu.
+## sayacı, üst ortada hedeflenen canavarın HP çubuğu, sağ üstte her zaman görünen
+## canlı minimap (dokununca büyük haritayı açar).
 
 ## world.gd tarafından add_child()'dan ÖNCE set edilir (harita çizimi için gerekli).
 var world_size := Vector2(2400, 1350)
@@ -50,7 +51,7 @@ func _ready() -> void:
 	_level_up_label.modulate.a = 0.0
 	add_child(_level_up_label)
 
-	_build_map_button()
+	_build_minimap()
 	_build_target_ui()
 
 func _make_label(parent: VBoxContainer) -> Label:
@@ -90,29 +91,13 @@ func announce_level_up(new_level: int) -> void:
 	tw.tween_interval(0.8)
 	tw.tween_property(_level_up_label, "modulate:a", 0.0, 0.6)
 
-## --- Harita butonu ----------------------------------------------------------
+## --- Sağ üst: her zaman görünen canlı minimap --------------------------------
 
-func _build_map_button() -> void:
-	var button := TextureButton.new()
-	button.texture_normal = load("res://assets/ui/round_panel.png")
-	button.ignore_texture_size = true
-	button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	button.modulate = Color(0.55, 0.75, 1.0, 0.95)
-	button.size = Vector2(64, 64)
-	button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	button.position = Vector2(-80, 16)
-	button.pressed.connect(_show_map)
-	add_child(button)
-
-	var label := Label.new()
-	label.text = "Harita"
-	label.add_theme_font_size_override("font_size", 13)
-	label.add_theme_color_override("font_color", Color(0.1, 0.15, 0.25))
-	label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	button.add_child(label)
+func _build_minimap() -> void:
+	var minimap: Control = load("res://scripts/minimap.gd").new()
+	minimap.world_size = world_size
+	minimap.tapped.connect(_show_map)
+	add_child(minimap)
 
 func _show_map() -> void:
 	var overlay: Control = load("res://scripts/map_overlay.gd").new()
@@ -155,7 +140,9 @@ func set_target(enemy: Node) -> void:
 		return
 
 	_target_container.visible = true
-	_target_name_label.text = _display_name_for_type(enemy.type_id if "type_id" in enemy else "")
+	var display_name: String = enemy.get_display_name() if enemy.has_method("get_display_name") else "?"
+	var lvl: int = enemy.get_level() if enemy.has_method("get_level") else 1
+	_target_name_label.text = "%s Lv.%d" % [display_name, lvl]
 	_target_bar.set_value(enemy.hp, enemy.max_hp)
 	enemy.health_changed.connect(_on_target_health_changed)
 
@@ -163,16 +150,3 @@ func _on_target_health_changed(current: int, max_hp: int) -> void:
 	_target_bar.set_value(current, max_hp)
 	if current <= 0:
 		_target_container.visible = false
-
-func _display_name_for_type(type_id: String) -> String:
-	match type_id:
-		"goblin":
-			return "Goblin"
-		"skelet":
-			return "İskelet"
-		"orc_warrior":
-			return "Ork Savaşçı"
-		"big_demon":
-			return "Dev İblis"
-		_:
-			return type_id.capitalize()
