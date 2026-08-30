@@ -31,6 +31,7 @@ func _ready() -> void:
 	y_sort_enabled = true # oyuncu/canavar/ağaç/ev birbirinin önünde-arkasında Y konumuna göre doğru sıralansın
 
 	_build_ground()
+	_build_paths()
 	_build_world_bounds()
 	_scatter_decorations()
 	_build_village()
@@ -84,6 +85,61 @@ func _build_ground() -> void:
 		for x in tiles_x:
 			ground.set_cell(Vector2i(x, y), source_id, GRASS_COORD)
 
+## Köy meydanı (taş) + doğuya ve kuzeye giden yollar (toprak). Aynı spritesheet
+## üzerinde ayrı bir TileMapLayer, zemin (-10) ile karakterlerin (0) arasında
+## (-9) render edilir.
+const STONE_COORD := Vector2i(7, 0)
+const DIRT_COORD := Vector2i(6, 0)
+const PLAZA_HALF_TILES := 6
+const ROAD_HALF_WIDTH := TILE_SIZE * 1.5 + 8.0 # yol kalınlığının yarısı + ağaç payı
+
+func _build_paths() -> void:
+	var tile_set := TileSet.new()
+	tile_set.tile_size = Vector2i(TILE_SIZE, TILE_SIZE)
+
+	var atlas := TileSetAtlasSource.new()
+	atlas.texture = load("res://assets/tiles/roguelike_sheet.png")
+	atlas.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
+	atlas.separation = Vector2i(1, 1)
+	atlas.create_tile(STONE_COORD)
+	atlas.create_tile(DIRT_COORD)
+	var source_id := tile_set.add_source(atlas)
+
+	var path_layer := TileMapLayer.new()
+	path_layer.tile_set = tile_set
+	path_layer.z_index = -9
+	add_child(path_layer)
+
+	var cx := int(WORLD_SIZE.x / TILE_SIZE / 2.0)
+	var cy := int(WORLD_SIZE.y / TILE_SIZE / 2.0)
+
+	# Meydan (taş kare)
+	for y in range(cy - PLAZA_HALF_TILES, cy + PLAZA_HALF_TILES + 1):
+		for x in range(cx - PLAZA_HALF_TILES, cx + PLAZA_HALF_TILES + 1):
+			path_layer.set_cell(Vector2i(x, y), source_id, STONE_COORD)
+
+	# Doğuya giden yol (toprak)
+	for y in range(cy - 1, cy + 1):
+		for x in range(cx + PLAZA_HALF_TILES, int(WORLD_SIZE.x / TILE_SIZE)):
+			path_layer.set_cell(Vector2i(x, y), source_id, DIRT_COORD)
+
+	# Kuzeye giden yol (toprak)
+	for x in range(cx - 1, cx + 1):
+		for y in range(0, cy - PLAZA_HALF_TILES):
+			path_layer.set_cell(Vector2i(x, y), source_id, DIRT_COORD)
+
+## Bir konum meydan/yol üstünde mi? (ağaç/canavar oraya doğmasın diye)
+func _is_on_path(pos: Vector2) -> bool:
+	var center := WORLD_SIZE / 2.0
+	var plaza_half := PLAZA_HALF_TILES * TILE_SIZE + TILE_SIZE / 2.0
+	if abs(pos.x - center.x) <= plaza_half and abs(pos.y - center.y) <= plaza_half:
+		return true # meydan
+	if pos.x > center.x and abs(pos.y - center.y) < ROAD_HALF_WIDTH:
+		return true # doğu yolu
+	if pos.y < center.y and abs(pos.x - center.x) < ROAD_HALF_WIDTH:
+		return true # kuzey yolu
+	return false
+
 ## Karakterin (ve canavarların) dünya sınırlarının dışına çıkmasını engelleyen
 ## görünmez duvarlar. StaticBody2D olduğu için move_and_slide() kullanan tüm
 ## CharacterBody2D'ler (Player, Enemy) otomatik olarak buna çarpar, ekstra kod gerekmez.
@@ -126,7 +182,7 @@ func _scatter_decorations() -> void:
 	var village_center := WORLD_SIZE / 2.0
 	for i in DECOR_COUNT:
 		var pos := Vector2(randf_range(40, WORLD_SIZE.x - 40), randf_range(40, WORLD_SIZE.y - 40))
-		if pos.distance_to(village_center) < VILLAGE_RADIUS:
+		if pos.distance_to(village_center) < VILLAGE_RADIUS or _is_on_path(pos):
 			continue
 		var sprite := Sprite2D.new()
 		sprite.texture = _make_decor_texture(coords[randi() % coords.size()])
@@ -158,6 +214,11 @@ func _build_village() -> void:
 		shape.shape = rect
 		body.add_child(shape)
 		add_child(body)
+
+	var stall := Sprite2D.new()
+	stall.texture = load("res://assets/village/market_stall.png")
+	stall.position = village_center + Vector2(-10, 50)
+	add_child(stall)
 
 func _spawn_player() -> CharacterBody2D:
 	var player: CharacterBody2D = load("res://scenes/Player.tscn").instantiate()
