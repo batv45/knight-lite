@@ -3,16 +3,21 @@
 Basit, tek oyunculu, 2D üstten görünüm açık dünya aksiyon-RPG (Knight Online'dan
 esinlenilmiş "canavar öldür, level kas" döngüsü). Godot 4 + GDScript.
 
-## Şu anki durum: Faz 1 — Hareket, kamera, dokunmatik kontrol
+## Şu anki durum: Faz 2 — Savaş sistemi
 
 Bu fazda oynanabilir olan:
-- Karakter (mavi kare, placeholder) WASD / ok tuşlarıyla hareket eder
-- Kamera karakteri takip eder, dünya sınırları içinde kalır
-- Sol alt köşede sanal joystick var (dokunmatik veya mouse ile sürükleyerek)
-- PC'de mouse ile de test edilebilir (`emulate_touch_from_mouse` açık), gerçek
-  cihazda parmakla aynı şekilde çalışır
+- Karakter (mavi kare, placeholder) WASD / ok tuşlarıyla ya da sol alttaki sanal
+  joystick ile hareket eder, kamera onu takip eder
+- Sağ alttaki kırmızı buton (veya klavyede boşluk/enter) ile saldırı: bakılan
+  yönde menzildeki canavarlara hasar verir
+- Canavarlar (kırmızı kare, placeholder): Idle → oyuncuyu görünce Chase →
+  menzile girince Attack state machine'i ile davranır, geri hasar verir
+- Her iki tarafta da HP çubuğu, HUD'da can ve öldürülen canavar sayacı
+- Canavar ölünce birkaç saniye sonra dünyada rastgele bir yerde yenisi doğar
+  (sürekli "öldür-tekrar öldür" döngüsü)
+- Oyuncu ölünce kısa bir süre sonra başlangıç noktasında tam canla yeniden doğar
 
-Henüz yok: savaş, canavarlar, level/XP, gerçek asset'ler — bunlar sonraki fazlarda.
+Henüz yok: level/XP, loot, gerçek asset'ler, birden fazla bölge — bunlar sonraki fazlarda.
 
 ## Sunucu tarafında hazır altyapı
 
@@ -53,7 +58,8 @@ görsel editörde gezinmek istersen:
 1. [Godot 4.7+](https://godotengine.org/download) indir.
 2. Godot'u aç → "Import" → bu klasördeki `project.godot` dosyasını seç.
 3. Üstteki Play (▶ / F5) tuşuna bas.
-4. Kontroller: ok tuşları/WASD veya sol alttaki sanal joystick (mouse ile de sürüklenebilir).
+4. Kontroller: ok tuşları/WASD veya sol alttaki sanal joystick (mouse ile de sürüklenebilir);
+   saldırı için boşluk/enter veya sağ alttaki kırmızı buton.
 
 ## Mimari notları
 
@@ -71,7 +77,7 @@ görsel editörde gezinmek istersen:
 ## Yol haritası
 
 - [x] Faz 1 — İskelet, hareket, kamera, touch kontrol
-- [ ] Faz 2 — Savaş çekirdeği (saldırı, HP, ölüm/respawn, 1 canavar tipi)
+- [x] Faz 2 — Savaş çekirdeği (saldırı, HP, ölüm/respawn, 1 canavar tipi)
 - [ ] Faz 3 — Leveling + loot (XP, level atlama, stat artışı, item drop)
 - [ ] Faz 4 — Dünya içeriği (birden fazla bölge/canavar tipi, zorluk eğrisi)
 - [ ] Faz 5 — Polish + Android export (HUD, ses, save/load, gerçek cihaz testi)
