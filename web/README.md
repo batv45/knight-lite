@@ -5,22 +5,29 @@ Tek sayfalık, framework'süz düz PHP. İki dosya:
 - `index.php` — proje adı, güncel sürüm, değişiklik günlüğü, indirme butonu
 - `upload.php` — token korumalı yükleme endpoint'i (yeni APK + sürüm + not gönderilir)
 
-## İlk kurulum
+Bu klasör **geliştirme** yeri. Canlıya çıkan yer ayrı bir repo:
+**[knight-lite-web](https://github.com/batv45/knight-lite-web)** — Cleavr.io buradan
+GitHub entegrasyonuyla otomatik deploy ediyor. Değişiklik yaptıktan sonra monorepo
+kökünden `./sync-web.sh "açıklama"` çalıştırıp oraya push et.
 
-1. PHP 8+ ve (Apache ise) `mod_php`, ya da Nginx + PHP-FPM olan bir hosting/sunucu gerekir.
-2. Bu `web/` klasörünü sunucuya kopyala (veya sunucuda bu repoyu clone'la, web root'u bu klasöre işaretle).
-3. `cp config.example.php config.php` ve içine güvenli, rastgele bir token yaz
-   (örn. `openssl rand -hex 24`). **`config.php` asla commit edilmez** (.gitignore'da).
-4. `cp releases.example.json releases.json` — ilk çalıştırmada gerçek veri dosyası oluşur,
-   sonrasında `upload.php` bu dosyayı günceller (git'e commit edilmez, sunucuda kalıcı kalır).
-5. `downloads/` klasörünün PHP tarafından yazılabilir olduğundan emin ol (`chmod 755` yeterli olmalı).
+## İlk kurulum (knight-lite-web / Cleavr tarafında)
 
-## Hızlı yerel test (PHP'nin kendi sunucusuyla, Apache/Nginx gerekmez)
+1. PHP 8+ ve (Apache ise) `mod_php`, ya da Nginx + PHP-FPM gerekir.
+2. Cleavr bu repoyu site'ın web root'una clone/deploy eder.
+3. Sunucuda: `cp config.example.php config.php` ve içine güvenli, rastgele bir token yaz
+   (örn. `openssl rand -hex 24`). **`config.php` asla commit edilmez** (.gitignore'da) —
+   Cleavr'ın deploy script'ine "eğer config.php yoksa örnekten oluştur" adımı eklenebilir.
+4. `cp releases.example.json releases.json` — ilk deploy'da bir kere yapılır, sonrasında
+   `upload.php` bu dosyayı günceller (git'e commit edilmez, sunucuda kalıcı kalır).
+5. `downloads/` klasörünün PHP tarafından yazılabilir olduğundan emin ol (`chmod 755`).
+6. Cleavr'ın deploy script'ine 3-5. adımları "sadece dosya yoksa" mantığıyla eklemek,
+   her deploy'da config/releases'in ezilmesini önler.
+
+## Hızlı yerel test
 
 ```bash
 php -S 0.0.0.0:8080 -t web
 ```
-Tarayıcıdan `http://SUNUCU_IP:8080` adresine git.
 
 ## Yeni build yayınlama (Claude Code tarafından, komut satırından)
 
