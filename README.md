@@ -27,3 +27,32 @@ komutu `web/`'i `../knight-lite-web` klonuna senkronize edip push eder (ilk sefe
    push ediliyor, Cleavr oradan otomatik deploy ediyor.
 3. Her yeni APK build'i, canlıdaki `upload.php`'ye `curl` ile gönderiliyor.
 4. Sen (ve arkadaşların) sitenin yayında olduğu adresten güncel APK'yı indiriyorsunuz.
+
+## Altyapı / erişim bilgileri
+
+| Ne | Nerede |
+|---|---|
+| Oyun kaynak kodu | https://github.com/batv45/knight-lite (bu repo) |
+| Web sitesi kaynak kodu (deploy hedefi) | https://github.com/batv45/knight-lite-web |
+| Canlı indirme sitesi | https://knight.batv.dev |
+| Hosting/deploy | Cleavr.io, `knight-lite-web` reposunu GitHub entegrasyonuyla izliyor |
+| Upload token | Sadece sunucudaki `config.php` içinde (repoya commit edilmez); Claude Code'un yerel ortamında `~/.secrets/knight_lite_upload_token.txt` içinde saklanıyor |
+| GitHub push erişimi | Hesap genelinde tanımlı bir SSH deploy key ile (`~/.ssh/knight_lite_deploy`) |
+
+### Versiyon numaralandırma kuralı
+
+Her yeni yayınlanan build'de `x.x.` sabit kalır, son basamak (patch) **1'den başlar**
+ve her yayında **tam olarak 1 artar** (ör. 0.3.0 → 0.3.1 → 0.3.2). Numara asla atlanmaz.
+Güncel sürüm `web/releases.json` → `version` alanından ya da canlı sitedeki
+`https://knight.batv.dev/releases.json`'dan görülebilir.
+
+### Yeni build yayınlama komutu
+
+```bash
+TOKEN=$(cat ~/.secrets/knight_lite_upload_token.txt)
+curl -F "apk=@app/build/knight-lite.apk" \
+     -F "version=<bir önceki + 1>" \
+     -F "note=<kısa açıklama>" \
+     -H "X-Upload-Token: $TOKEN" \
+     https://knight.batv.dev/upload.php
+```
