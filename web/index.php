@@ -3,16 +3,9 @@ declare(strict_types=1);
 // Knight Lite — indirme sayfası. Tek dosya, framework yok.
 // releases.json'ı okuyup güncel sürümü + değişiklik günlüğünü gösterir.
 
-$releasesFile = __DIR__ . '/releases.json';
-$defaults = [
-	'project' => 'Knight Lite',
-	'version' => '0.0.0',
-	'apk_filename' => null,
-	'changelog' => [],
-];
-$raw = @file_get_contents($releasesFile);
-$data = $raw !== false ? (json_decode($raw, true) ?: $defaults) : $defaults;
-$data += $defaults;
+require __DIR__ . '/bootstrap.php';
+
+$data = readReleases();
 
 $downloadUrl = null;
 if (!empty($data['apk_filename']) && is_file(__DIR__ . '/downloads/' . $data['apk_filename'])) {

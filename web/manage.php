@@ -13,6 +13,8 @@ declare(strict_types=1);
 //   curl -X POST -H "X-Upload-Token: <token>" -d "filename=knight-lite-0.3.0.apk" \
 //        https://SENIN_DOMAININ/manage.php?action=delete
 
+require __DIR__ . '/bootstrap.php';
+
 header('Content-Type: application/json; charset=utf-8');
 
 function fail(int $code, string $message): void
@@ -22,14 +24,13 @@ function fail(int $code, string $message): void
 	exit;
 }
 
-$configPath = __DIR__ . '/config.php';
-if (!is_file($configPath)) {
-	fail(500, 'config.php eksik.');
+$expectedToken = resolveUploadToken();
+if ($expectedToken === null) {
+	fail(500, 'Token yapılandırılmamış: UPLOAD_TOKEN ortam değişkenini ayarla ya da config.php oluştur.');
 }
-$config = require $configPath;
 
 $token = $_SERVER['HTTP_X_UPLOAD_TOKEN'] ?? ($_POST['token'] ?? ($_GET['token'] ?? ''));
-if (!is_string($token) || $token === '' || !hash_equals((string) $config['upload_token'], $token)) {
+if (!is_string($token) || $token === '' || !hash_equals($expectedToken, $token)) {
 	fail(401, 'Geçersiz token.');
 }
 
@@ -59,18 +60,10 @@ function resolveDownloadPath(string $downloadsDir, string $filename): ?string
 	return $real;
 }
 
-function readReleases(string $webRoot): array
-{
-	$defaults = ['project' => 'Knight Lite', 'version' => '0.0.0', 'apk_filename' => null, 'changelog' => []];
-	$raw = @file_get_contents($webRoot . '/releases.json');
-	$data = $raw !== false ? (json_decode($raw, true) ?: $defaults) : $defaults;
-	return $data + $defaults;
-}
-
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
 if ($action === 'list') {
-	$releases = readReleases(__DIR__);
+	$releases = readReleases();
 	$activeFile = $releases['apk_filename'];
 
 	$files = [];
@@ -100,7 +93,7 @@ if ($action === 'delete') {
 	$filename = basename((string) ($_POST['filename'] ?? ''));
 	$force = (($_POST['force'] ?? '') === '1');
 
-	$releases = readReleases(__DIR__);
+	$releases = readReleases();
 	$isActive = $filename !== '' && $filename === $releases['apk_filename'];
 	if ($isActive && !$force) {
 		fail(409, 'Bu dosya şu an yayında olan aktif build. Silmek için force=1 gönder.');
@@ -117,7 +110,7 @@ if ($action === 'delete') {
 
 	if ($isActive) {
 		$releases['apk_filename'] = null;
-		file_put_contents(__DIR__ . '/releases.json', json_encode($releases, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+		writeReleases($releases);
 	}
 
 	echo json_encode(['ok' => true, 'deleted' => basename($realPath)]);

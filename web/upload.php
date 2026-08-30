@@ -2,8 +2,10 @@
 declare(strict_types=1);
 // Yeni APK build'i yayınlamak için token korumalı endpoint.
 // Kullanım (Claude Code tarafından):
-//   curl -F "apk=@build/knight-lite.apk" -F "version=0.4.0" -F "note=Faz 4: dünya içeriği" \
+//   curl -F "apk=@build/knight-lite.apk" -F "version=0.1.0-beta2" -F "note=..." \
 //        -H "X-Upload-Token: <token>" https://SENIN_DOMAININ/upload.php
+
+require __DIR__ . '/bootstrap.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -14,18 +16,17 @@ function fail(int $code, string $message): void
 	exit;
 }
 
-$configPath = __DIR__ . '/config.php';
-if (!is_file($configPath)) {
-	fail(500, 'config.php eksik. config.example.php dosyasını config.php olarak kopyalayıp token belirleyin.');
+$expectedToken = resolveUploadToken();
+if ($expectedToken === null) {
+	fail(500, 'Token yapılandırılmamış: UPLOAD_TOKEN ortam değişkenini ayarla ya da config.php oluştur.');
 }
-$config = require $configPath;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	fail(405, 'Sadece POST kabul edilir.');
 }
 
 $token = $_SERVER['HTTP_X_UPLOAD_TOKEN'] ?? ($_POST['token'] ?? '');
-if (!is_string($token) || $token === '' || !hash_equals((string) $config['upload_token'], $token)) {
+if (!is_string($token) || $token === '' || !hash_equals($expectedToken, $token)) {
 	fail(401, 'Geçersiz token.');
 }
 
@@ -66,12 +67,7 @@ if (!move_uploaded_file($tmpPath, $destPath)) {
 	fail(500, 'Dosya kaydedilemedi.');
 }
 
-$releasesFile = __DIR__ . '/releases.json';
-$defaults = ['project' => 'Knight Lite', 'version' => '0.0.0', 'apk_filename' => null, 'changelog' => []];
-$raw = @file_get_contents($releasesFile);
-$data = $raw !== false ? (json_decode($raw, true) ?: $defaults) : $defaults;
-$data += $defaults;
-
+$data = readReleases();
 $data['version'] = $version;
 $data['apk_filename'] = $filename;
 $data['changelog'][] = [
@@ -79,7 +75,6 @@ $data['changelog'][] = [
 	'note' => $note !== '' ? $note : 'Yeni build yayınlandı.',
 	'uploaded_at' => date('Y-m-d H:i'),
 ];
-
-file_put_contents($releasesFile, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+writeReleases($data);
 
 echo json_encode(['ok' => true, 'version' => $version, 'filename' => $filename]);
