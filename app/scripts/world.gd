@@ -8,6 +8,7 @@ const WORLD_SIZE := Vector2(2400, 1350)
 const ENEMY_COUNT := 10
 const ENEMY_RESPAWN_DELAY := 4.0
 const ENEMY_SPAWN_MARGIN := 200.0
+const VILLAGE_RADIUS := 220.0 # köy alanına ağaç/canavar doğmasın
 
 ## Zorluk eğrisi: spawn noktasına (dünya merkezi) olan mesafeye göre canavar tipi
 ## seçilir. Merkeze yakın zayıf canavarlar, uzaklaştıkça güçlüleri, en uçlarda
@@ -27,8 +28,12 @@ var _hud: CanvasLayer
 var _player: CharacterBody2D
 
 func _ready() -> void:
+	y_sort_enabled = true # oyuncu/canavar/ağaç/ev birbirinin önünde-arkasında Y konumuna göre doğru sıralansın
+
 	_build_ground()
 	_build_world_bounds()
+	_scatter_decorations()
+	_build_village()
 	_player = _spawn_player()
 	_attach_camera(_player)
 	_add_touch_controls()
@@ -100,6 +105,60 @@ func _add_wall(pos: Vector2, size: Vector2) -> void:
 	body.add_child(shape)
 	add_child(body)
 
+## Ağaç/çalı görselleri Kenney "Roguelike/RPG Pack" spritesheet'inden atlas
+## koordinatıyla (col, row) alınır, ayrı dosya gerekmez.
+const TREE_ROUND_COORD := Vector2i(13, 10)
+const TREE_PINE_COORD := Vector2i(16, 10)
+const BUSH_COORD := Vector2i(21, 9)
+const DECOR_COUNT := 70
+
+func _make_decor_texture(coord: Vector2i) -> AtlasTexture:
+	var pitch := TILE_SIZE + 1
+	var atlas := AtlasTexture.new()
+	atlas.atlas = load("res://assets/tiles/roguelike_sheet.png")
+	atlas.region = Rect2(coord.x * pitch, coord.y * pitch, TILE_SIZE, TILE_SIZE)
+	return atlas
+
+## Dünyaya rastgele ağaç/çalı serpiştirir (köy alanına dokunmaz). Görsel amaçlı,
+## çarpışması yok — üzerinden yürünebilir (kapsamı basit tutmak için bilinçli tercih).
+func _scatter_decorations() -> void:
+	var coords := [TREE_ROUND_COORD, TREE_PINE_COORD, TREE_ROUND_COORD, TREE_PINE_COORD, BUSH_COORD]
+	var village_center := WORLD_SIZE / 2.0
+	for i in DECOR_COUNT:
+		var pos := Vector2(randf_range(40, WORLD_SIZE.x - 40), randf_range(40, WORLD_SIZE.y - 40))
+		if pos.distance_to(village_center) < VILLAGE_RADIUS:
+			continue
+		var sprite := Sprite2D.new()
+		sprite.texture = _make_decor_texture(coords[randi() % coords.size()])
+		sprite.position = pos
+		add_child(sprite)
+
+## Spawn noktasının etrafına başlangıç köyü: iki ev + basit taban çarpışması
+## (evin içinden yürünemesin diye), üstlerine binilemez ama etrafında dolaşılabilir.
+func _build_village() -> void:
+	var village_center := WORLD_SIZE / 2.0
+	var houses := [
+		{"file": "res://assets/village/house_orange.png", "offset": Vector2(-90, -70)},
+		{"file": "res://assets/village/house_blue.png", "offset": Vector2(80, -60)},
+	]
+	for house_data in houses:
+		var tex: Texture2D = load(house_data["file"])
+		var pos: Vector2 = village_center + house_data["offset"]
+
+		var sprite := Sprite2D.new()
+		sprite.texture = tex
+		sprite.position = pos
+		add_child(sprite)
+
+		var body := StaticBody2D.new()
+		body.position = pos + Vector2(0, tex.get_height() * 0.22)
+		var shape := CollisionShape2D.new()
+		var rect := RectangleShape2D.new()
+		rect.size = Vector2(tex.get_width() * 0.75, tex.get_height() * 0.3)
+		shape.shape = rect
+		body.add_child(shape)
+		add_child(body)
+
 func _spawn_player() -> CharacterBody2D:
 	var player: CharacterBody2D = load("res://scenes/Player.tscn").instantiate()
 	player.position = WORLD_SIZE / 2.0
@@ -121,10 +180,16 @@ func _add_touch_controls() -> void:
 	add_child(load("res://scenes/TouchControls.tscn").instantiate())
 
 func _random_enemy_position() -> Vector2:
-	return Vector2(
-		randf_range(ENEMY_SPAWN_MARGIN, WORLD_SIZE.x - ENEMY_SPAWN_MARGIN),
-		randf_range(ENEMY_SPAWN_MARGIN, WORLD_SIZE.y - ENEMY_SPAWN_MARGIN)
-	)
+	var village_center := WORLD_SIZE / 2.0
+	var pos := Vector2.ZERO
+	for attempt in 10:
+		pos = Vector2(
+			randf_range(ENEMY_SPAWN_MARGIN, WORLD_SIZE.x - ENEMY_SPAWN_MARGIN),
+			randf_range(ENEMY_SPAWN_MARGIN, WORLD_SIZE.y - ENEMY_SPAWN_MARGIN)
+		)
+		if pos.distance_to(village_center) >= VILLAGE_RADIUS:
+			break
+	return pos
 
 func _spawn_enemy_at(pos: Vector2, forced_type: String = "") -> CharacterBody2D:
 	var enemy: CharacterBody2D = load("res://scenes/Enemy.tscn").instantiate()
