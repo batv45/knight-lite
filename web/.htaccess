@@ -1,0 +1,11 @@
+# Apache ile barındırılıyorsa: config.php'nin doğrudan taranmasını engelle.
+<Files "config.php">
+	Require all denied
+</Files>
+
+# downloads/ klasöründe PHP çalıştırılmasın (sadece dosya indirme amaçlı).
+<IfModule mod_php.c>
+	<Directory "downloads">
+		php_flag engine off
+	</Directory>
+</IfModule>
