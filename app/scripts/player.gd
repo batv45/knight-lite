@@ -26,6 +26,7 @@ const MP_REGEN_PER_SEC := 5.0
 const ATTACK_RANGE := 46.0
 const ATTACK_COOLDOWN := 0.4
 const RESPAWN_DELAY := 1.5
+const DEATH_GOLD_PENALTY := 0.25 # ölünce altının %25'i kaybolur — ölümün bir bedeli olsun
 
 const SPRITE_DIR := "res://assets/characters/knight/"
 
@@ -41,10 +42,10 @@ var gold := 0
 var current_target: Node = null
 
 var facing := Vector2.DOWN
-var can_attack := true
 var is_dead := false
 var spawn_point := Vector2.ZERO
 
+var _attack_cooldown := 0.0
 var _mp_regen_accum := 0.0
 var _visual: AnimatedSprite2D
 var _collision_shape: CollisionShape2D
@@ -95,6 +96,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_regen_mp(delta)
+	_attack_cooldown = maxf(0.0, _attack_cooldown - delta)
 
 	var dir := InputBridge.get_move_vector()
 	if dir.length() > 0.1:
@@ -123,9 +125,9 @@ func _update_animation(dir: Vector2) -> void:
 		_visual.flip_h = dir.x < 0.0
 
 func _attack() -> void:
-	if not can_attack or is_dead:
+	if _attack_cooldown > 0.0 or is_dead:
 		return
-	can_attack = false
+	_attack_cooldown = ATTACK_COOLDOWN
 
 	# Menzildeki en yakın canavara doğru otomatik dön (arkası dönükken saldırınca
 	# da vurabilsin diye) — manuel yön tutmaya gerek kalmaz.
@@ -144,15 +146,11 @@ func _attack() -> void:
 		var to_enemy: Vector2 = enemy.global_position - global_position
 		if to_enemy.length() <= ATTACK_RANGE and to_enemy.normalized().dot(facing) > 0.3:
 			enemy.take_damage(attack_damage)
-			# Bu vuruşla öldüyse hedef olarak işaretleme (ölüm sinyali zaten
-			# current_target'ı temizledi, üstüne yazıp geri getirmeyelim).
+			# En yakın hayatta kalan canavarı HUD hedefi yap.
 			if hit_target == null and is_instance_valid(enemy) and enemy.is_alive():
 				hit_target = enemy
 	if hit_target != null:
 		_set_target(hit_target)
-
-	await get_tree().create_timer(ATTACK_COOLDOWN).timeout
-	can_attack = true
 
 ## Saldırı menzilindeki (yön farketmeksizin) en yakın canlı canavarı bulur.
 func _find_nearest_enemy_in_range() -> Node:
@@ -219,6 +217,13 @@ func _die() -> void:
 	visible = false
 	_collision_shape.disabled = true
 	_set_target(null)
+
+	# Ölüm cezası: altının bir kısmını kaybet (ölümün bir bedeli olsun).
+	var lost := int(gold * DEATH_GOLD_PENALTY)
+	if lost > 0:
+		gold -= lost
+		gold_changed.emit(gold)
+
 	died.emit()
 	await get_tree().create_timer(RESPAWN_DELAY).timeout
 	_respawn()

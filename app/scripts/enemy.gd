@@ -1,21 +1,27 @@
 extends CharacterBody2D
-## Faz 4: veri odaklı çoklu canavar tipi + hedef kilitleme. `type_id` (world.gd
-## tarafından add_child'dan ÖNCE set edilir) hangi sprite/stat setinin
-## kullanılacağını belirler.
+## Faz A: gerçek düşman AI'ı. Canavarlar artık görüş menzilinde OTOMATİK aggro
+## olur (önceden sadece oyuncu vurunca saldırıyordu — bu yüzden oyun risksizdi).
 ##
-## Canavarlar artık OTOMATİK saldırmaz: sadece oyuncu tarafından hedeflenince
-## (bkz. player.gd _set_target) Chase/Attack state'ine geçer, hedef değişince/
-## kaybolunca tekrar Idle'a döner. Hedeflenen canavarın etrafında sarı bir
-## halka gösterilir.
+## Durum makinesi:
+##   IDLE   — evinde (spawn noktası), pasif
+##   CHASE  — oyuncuyu kovalıyor ya da eve dönüyor
+##   ATTACK — menzilde, saldırıyor
+##   DEAD   — ölüm animasyonu + queue_free
+##
+## Aggro edinme/bırakma:
+##   - Oyuncu AGGRO_RANGE içine girince ya da canavar vurulunca aggro olur.
+##   - Aggro'yken oyuncu (evden ölçülen) LEASH_RANGE'i aşarsa vazgeçip eve döner.
+##     Leash EVDEN ölçülür ki oyuncu canavarı harita boyunca sürükleyemesin.
+##
+## `type_id` world.gd tarafından add_child'dan ÖNCE set edilir.
 
 signal died(xp_reward: int)
 signal health_changed(current: int, max_hp: int)
 
 enum State { IDLE, CHASE, ATTACK, DEAD }
 
-## Her canavar tipinin sprite klasörü ve dengelemesi. Yeni bir tip eklemek için
-## sadece buraya bir satır eklemek ve app/assets/monsters/<id>/ altına
-## "<id>_idle_anim_f0..3.png" + "<id>_run_anim_f0..3.png" koymak yeterli.
+## Her canavar tipinin sprite klasörü ve dengelemesi. Yeni tip eklemek için
+## sadece buraya bir satır + app/assets/monsters/<id>/ altına sprite koymak yeterli.
 const ENEMY_TYPES := {
 	"goblin": {
 		"body_size": Vector2(16, 16), "max_hp": 40, "speed": 90.0,
@@ -40,11 +46,19 @@ const ENEMY_TYPES := {
 }
 const DEFAULT_TYPE := "goblin"
 
-## world.gd bunu add_child()'dan ÖNCE set eder (Player'ın position'ı gibi).
+const AGGRO_RANGE := 175.0        # oyuncu bu menzile girince kovalamaya başlar
+const LEASH_RANGE := 540.0        # evden bu kadar uzaklaşınca vazgeçip döner
+const ATTACK_COOLDOWN := 1.0
+const RETURN_SPEED_MULT := 0.75   # eve dönerken biraz daha yavaş
+const SEPARATION_RANGE := 24.0    # bu mesafedeki komşulardan itilir (üst üste binmesin)
+const SEPARATION_FORCE := 55.0
+
+## world.gd bunu add_child()'dan ÖNCE set eder.
 var type_id := DEFAULT_TYPE
 
 var state: int = State.IDLE
-var is_targeted := false
+var is_targeted := false          # sadece görsel: sarı halka + HUD hedef çubuğu
+var is_aggro := false
 var hp: int
 var max_hp: int
 var speed: float
@@ -52,8 +66,9 @@ var attack_range: float
 var attack_damage: int
 var xp_reward: int
 var body_size: Vector2
+var home_position: Vector2
 
-var _attack_ready := true
+var _attack_cooldown := 0.0
 var _player: Node2D
 var _visual: AnimatedSprite2D
 var _collision_shape: CollisionShape2D
@@ -63,6 +78,7 @@ var _name_label: Label
 
 func _ready() -> void:
 	add_to_group("enemies")
+	home_position = position
 
 	var cfg: Dictionary = ENEMY_TYPES.get(type_id, ENEMY_TYPES[DEFAULT_TYPE])
 	body_size = cfg["body_size"]
@@ -92,8 +108,6 @@ func _ready() -> void:
 
 	_name_label = Label.new()
 	_name_label.text = "%s Lv.%d" % [get_display_name(), get_level()]
-	# Kamera 2.5x zoom'da olduğu için küçük punto ekranda yeterince okunuyor;
-	# daha büyüğü canavar sprite'ını bastırıyor.
 	_name_label.add_theme_font_size_override("font_size", 7)
 	_name_label.add_theme_color_override("font_color", Color(1, 1, 1))
 	_name_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
@@ -145,54 +159,97 @@ func get_level() -> int:
 	var cfg: Dictionary = ENEMY_TYPES.get(type_id, {})
 	return cfg.get("level", 1)
 
-## Player tarafından vurulunca (bkz. player.gd _set_target) çağrılır. Hedeflenmeyen
-## canavarlar tamamen pasif kalır (hareket etmez, saldırmaz).
+## Sadece görsel: sarı halka + HUD'un bu canavarı hedef alması. AI'yı ETKİLEMEZ
+## (artık aggro bağımsız). Oyuncu bir canavara vurunca player.gd bunu çağırır.
 func set_targeted(value: bool) -> void:
 	is_targeted = value
 	_target_ring.visible = value
 	if value:
 		_target_ring.queue_redraw()
-	else:
-		state = State.IDLE
-		velocity = Vector2.ZERO
-		_attack_ready = true
 
-func _physics_process(_delta: float) -> void:
-	if state == State.DEAD or not is_targeted or _player == null or not is_instance_valid(_player) or _player.is_dead:
+func _physics_process(delta: float) -> void:
+	if state == State.DEAD:
 		velocity = Vector2.ZERO
-		_update_animation()
 		return
 
-	var to_player: Vector2 = _player.global_position - global_position
-	var dist := to_player.length()
+	_attack_cooldown = maxf(0.0, _attack_cooldown - delta)
 
-	if dist <= attack_range:
-		state = State.ATTACK
-		velocity = Vector2.ZERO
-		if _attack_ready:
-			_attack()
+	var player_available: bool = _player != null and is_instance_valid(_player) and not _player.is_dead
+	if player_available:
+		_update_aggro()
+
+	if is_aggro and player_available:
+		_chase_and_attack()
 	else:
-		state = State.CHASE
-		velocity = to_player.normalized() * speed
+		is_aggro = false
+		_return_home()
 
 	move_and_slide()
 	_update_animation()
 
+func _update_aggro() -> void:
+	var dist_player := global_position.distance_to(_player.global_position)
+	if not is_aggro:
+		if dist_player <= AGGRO_RANGE:
+			is_aggro = true
+	# Leash EVDEN ölçülür (oyuncunun konumundan değil) ki oyuncu canavarı haritanın
+	# öbür ucuna sürükleyemesin. Hem canavar hem oyuncu bölgeden çıkınca vazgeçer;
+	# oyuncu için de kontrol edilir ki canavar sınıra kadar boşuna koşmasın.
+	elif global_position.distance_to(home_position) > LEASH_RANGE \
+			or _player.global_position.distance_to(home_position) > LEASH_RANGE:
+		is_aggro = false
+
+func _chase_and_attack() -> void:
+	var to_player: Vector2 = _player.global_position - global_position
+	var dist := to_player.length()
+	if dist <= attack_range:
+		state = State.ATTACK
+		velocity = _separation() # yerinde dururken bile komşulardan ayrış
+		if _attack_cooldown <= 0.0:
+			_do_attack()
+	else:
+		state = State.CHASE
+		velocity = to_player.normalized() * speed + _separation()
+
+func _return_home() -> void:
+	var to_home := home_position - global_position
+	if to_home.length() > 8.0:
+		state = State.CHASE # koşma animasyonu
+		velocity = to_home.normalized() * speed * RETURN_SPEED_MULT + _separation()
+	else:
+		state = State.IDLE
+		velocity = Vector2.ZERO
+
+## Yakın komşulardan iten kuvvet — canavarların üst üste yığılmasını önler.
+func _separation() -> Vector2:
+	var push := Vector2.ZERO
+	for other in get_tree().get_nodes_in_group("enemies"):
+		if other == self or not is_instance_valid(other):
+			continue
+		var off: Vector2 = global_position - other.global_position
+		var d := off.length()
+		if d > 0.01 and d < SEPARATION_RANGE:
+			push += off.normalized() * (SEPARATION_RANGE - d) / SEPARATION_RANGE * SEPARATION_FORCE
+	return push
+
 func _update_animation() -> void:
 	_visual.animation = "run" if state == State.CHASE else "idle"
-	if abs(velocity.x) > 0.1:
+	if absf(velocity.x) > 0.1:
 		_visual.flip_h = velocity.x < 0.0
 
-func _attack() -> void:
-	_attack_ready = false
-	_player.take_damage(attack_damage)
-	await get_tree().create_timer(1.0).timeout
-	_attack_ready = true
+## Hasarı anında verir; cooldown _physics_process'te sayaçla işler. (Önceki
+## `await create_timer` yaklaşımı, canavar bekleme sırasında queue_free edilirse
+## serbest bırakılmış instance'ta devam edip hata veriyordu.)
+func _do_attack() -> void:
+	_attack_cooldown = ATTACK_COOLDOWN
+	if is_instance_valid(_player) and not _player.is_dead:
+		_player.take_damage(attack_damage)
 
 func take_damage(amount: int) -> void:
 	if state == State.DEAD:
 		return
 	hp = max(hp - amount, 0)
+	is_aggro = true # vurulunca menzil dışında bile misilleme yapar
 	health_changed.emit(hp, max_hp)
 	_health_bar.update_ratio(float(hp) / float(max_hp))
 	_flash_hit()
@@ -207,6 +264,7 @@ func _flash_hit() -> void:
 func _die() -> void:
 	state = State.DEAD
 	_collision_shape.disabled = true
+	_target_ring.visible = false
 	died.emit(xp_reward)
 	var tw := create_tween()
 	tw.tween_property(_visual, "scale", Vector2.ZERO, 0.3)
